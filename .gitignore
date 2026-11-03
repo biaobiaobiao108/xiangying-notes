@@ -1,15 +1,13 @@
-node_modules
-dist
-.workbuddy
-scratch
-.wrangler
-.wrangler.local.jsonc
-.wrangler.remote.jsonc
-.dev.vars*
-.env
-.env.*
-!.env.example
+# Go binaries and artifacts
+*.exe
+*.exe~
+bin/
+dist/
+
+# Data & SQLite
 data
 *.sqlite
 *.sqlite-*
 *.log
+.workbuddy
+scratch
