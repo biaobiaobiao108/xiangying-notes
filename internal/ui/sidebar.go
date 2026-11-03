@@ -10,35 +10,99 @@ import (
 )
 
 func (a *App) renderSidebar(c *ui.Context, p Palette) {
-	ui.Column(c).Width(210).Shrink(0).FillHeight().Background(p.Sidebar).Padding(12, 10).Gap(14).Children(func() {
-		// Brand Header
-		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(4, 6).Children(func() {
-			ui.Icon(c, assets.ElephantLogo).FontSize(22).TextColor(p.Accent)
-			ui.Column(c).Gap(0).Children(func() {
-				ui.Text(c, "象映笔记").FontSize(15).Bold().TextColor(p.Text)
-				ui.Text(c, "Xiangying Notes").FontSize(10).TextColor(p.TextMuted)
+	ui.Column(c).Width(215).Shrink(0).FillHeight().Background(p.Canvas).Padding(14, 12).Gap(10).Children(func() {
+		// 1. Top Brand Header & View Switcher
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			// Brand Logo & Text
+			ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
+				ui.Icon(c, assets.ElephantLogo).FontSize(20).TextColor(p.Ink)
+				ui.Text(c, "象映笔记").FontSize(14).Bold().TextColor(p.Ink)
+			})
+
+			ui.Box(c).Grow(1)
+
+			// Layout Switcher Button (3-column vs Card Grid)
+			switcher := ui.Button(c, "").KeepFocus().Padding(3, 5).Radius(5).Tooltip("切换布局视图")
+			if switcher.Clicked() {
+				if a.layoutMode == model.LayoutGrid {
+					a.layoutMode = model.LayoutSplit
+				} else {
+					a.layoutMode = model.LayoutGrid
+				}
+			}
+			switcher.Children(func() {
+				switchIcon := assets.IconLayoutGrid
+				if a.layoutMode == model.LayoutGrid {
+					switchIcon = assets.IconLayoutPanel
+				}
+				ui.Icon(c, switchIcon).FontSize(16).TextColor(p.Muted)
 			})
 		})
 
-		// Main Views Section
-		ui.Column(c).Gap(2).Children(func() {
-			a.renderNavRow(c, p, "所有笔记", assets.IconAllNotes, a.view == model.ViewAll, len(a.notes), func() {
+		// 2. Primary "+ 新建笔记" Button (Pine Green, restrained, rounded 8px)
+		newBtn := ui.Button(c, "+ 新建笔记").
+			KeepFocus().
+			FillWidth().
+			Height(36).
+			Radius(8).
+			Background(p.Accent).
+			TextColor(ui.RGB(255, 255, 255)).
+			FontSize(13).
+			Bold()
+
+		if newBtn.Clicked() {
+			a.actionNewNote()
+		}
+
+		// 3. Search Field (with Search Icon and Ctrl / hint)
+		ui.Row(c).
+			AlignItems(ui.Center).
+			Gap(6).
+			Height(34).
+			Padding(0, 8).
+			Radius(8).
+			Background(p.SearchBg).
+			Border(1, p.Border).
+			Children(func() {
+				ui.Icon(c, assets.IconSearch).FontSize(13).TextColor(p.Muted)
+				ui.TextInput(c, &a.searchQuery).
+					Placeholder("搜索笔记或 #标签").
+					FontSize(12).
+					Grow(1).
+					Changed()
+				// Hint badge
+				ui.Box(c).Padding(1, 4).Radius(4).Background(p.Canvas).Border(1, p.BorderSoft).Children(func() {
+					ui.Text(c, "Ctrl /").FontSize(10).TextColor(p.SoftMuted)
+				})
+			})
+
+		// 4. Navigation Menu
+		ui.Column(c).Gap(2).Margin(4, 0, 0, 0).Children(func() {
+			a.renderNavRow(c, p, "收件箱", assets.IconInbox, a.view == model.ViewInbox, func() {
+				a.view = model.ViewInbox
+				a.selectedNotebookID = ""
+				a.selectedTag = ""
+				a.refreshData()
+			})
+			a.renderNavRow(c, p, "全部笔记", assets.IconAllNotes, a.view == model.ViewAll, func() {
 				a.view = model.ViewAll
 				a.selectedNotebookID = ""
 				a.selectedTag = ""
 				a.refreshData()
 			})
-			a.renderNavRow(c, p, "我的收藏", assets.IconFavorites, a.view == model.ViewFavorites, -1, func() {
+			a.renderNavRow(c, p, "收藏", assets.IconStar, a.view == model.ViewFavorites, func() {
 				a.view = model.ViewFavorites
 				a.selectedNotebookID = ""
 				a.selectedTag = ""
 				a.refreshData()
 			})
-			a.renderNavRow(c, p, "待办任务", assets.IconTasks, a.view == model.ViewTasks, len(a.tasks), func() {
-				a.view = model.ViewTasks
+			a.renderNavRow(c, p, "已分享", assets.IconShare, a.view == model.ViewShared, func() {
+				a.view = model.ViewShared
+				a.selectedNotebookID = ""
+				a.selectedTag = ""
 				a.refreshData()
 			})
-			a.renderNavRow(c, p, "废纸篓", assets.IconTrash, a.view == model.ViewTrash, -1, func() {
+			a.renderNavRow(c, p, "回收站", assets.IconTrash, a.view == model.ViewTrash, func() {
 				a.view = model.ViewTrash
 				a.selectedNotebookID = ""
 				a.selectedTag = ""
@@ -46,107 +110,96 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			})
 		})
 
-		// Divider
-		ui.Box(c).Height(1).FillWidth().Background(p.Border)
-
-		// Notebooks Section
-		ui.Column(c).Gap(4).Grow(1).Children(func() {
+		// 5. Notebooks Section ("笔记本")
+		ui.Column(c).Gap(3).Margin(12, 0, 0, 0).Grow(1).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Padding(2, 6).Children(func() {
-				ui.Text(c, "笔记本").FontSize(11).Bold().TextColor(p.TextMuted).Grow(1)
-				if ui.Button(c, "+").KeepFocus().Padding(1, 6).FontSize(12).Tooltip("新建笔记本").Clicked() {
+				ui.Text(c, "笔记本").FontSize(11).TextColor(p.Muted).Grow(1)
+				addBtn := ui.Button(c, "+").KeepFocus().Padding(1, 4).FontSize(13).TextColor(p.Muted).Tooltip("新建笔记本")
+				if addBtn.Clicked() {
 					a.dialogNewNotebook = true
 					a.dialogNotebookName = ""
 				}
 			})
 
-			// Scrollable Notebooks list
+			// List of Notebooks
 			ui.Column(c).Gap(2).Children(func() {
 				for _, nb := range a.notebooks {
-					isChosen := a.view == model.ViewNotebook && a.selectedNotebookID == nb.ID
-					row := ui.Row(c.Key(nb.ID)).AlignItems(ui.Center).Gap(8).Padding(5, 8).Radius(6).Cursor(ui.CursorPointer)
-					if isChosen {
-						row.Background(p.AccentTint).TextColor(p.Accent)
+					// Don't duplicate "收件箱" in notebook list if it's in top navigation
+					if nb.Name == "收件箱" {
+						continue
 					}
+					isChosen := a.view == model.ViewNotebook && a.selectedNotebookID == nb.ID
+					row := ui.Row(c.Key(nb.ID)).
+						AlignItems(ui.Center).
+						Gap(8).
+						Padding(5, 8).
+						Radius(6).
+						Cursor(ui.CursorPointer)
+
+					if isChosen {
+						row.Background(p.SurfaceSelect)
+					}
+
 					if row.Clicked() {
 						a.view = model.ViewNotebook
 						a.selectedNotebookID = nb.ID
 						a.selectedTag = ""
 						a.refreshData()
 					}
+
 					row.Children(func() {
-						// Colored dot
-						cDot := p.Accent
-						if nb.Color != "" {
-							cDot = parseHexColor(nb.Color, p.Accent)
+						ui.Icon(c, assets.IconFolder).FontSize(14).TextColor(p.Muted)
+						txt := ui.Text(c, nb.Name).FontSize(13).Grow(1).SingleLine()
+						if isChosen {
+							txt.Bold().TextColor(p.Ink)
+						} else {
+							txt.TextColor(p.InkSoft)
 						}
-						ui.Box(c).Size(8, 8).Radius(4).Background(cDot).Shrink(0)
-						ui.Text(c, nb.Name).FontSize(13).Grow(1).SingleLine()
 						if nb.NoteCount > 0 {
-							ui.Text(c, fmt.Sprintf("%d", nb.NoteCount)).FontSize(11).TextColor(p.TextMuted)
+							ui.Text(c, fmt.Sprintf("%d", nb.NoteCount)).FontSize(11).TextColor(p.SoftMuted)
 						}
 					})
 				}
 			})
+		})
 
-			// Tags Section
-			if len(a.tags) > 0 {
-				ui.Box(c).Height(8)
-				ui.Row(c).AlignItems(ui.Center).Padding(2, 6).Children(func() {
-					ui.Text(c, "标签").FontSize(11).Bold().TextColor(p.TextMuted).Grow(1)
-				})
-				ui.Column(c).Gap(2).Children(func() {
-					for _, tc := range a.tags {
-						isChosen := a.view == model.ViewTag && a.selectedTag == tc.Tag
-						row := ui.Row(c.Key("tag-"+tc.Tag)).AlignItems(ui.Center).Gap(6).Padding(4, 8).Radius(6).Cursor(ui.CursorPointer)
-						if isChosen {
-							row.Background(p.AccentTint).TextColor(p.Accent)
-						}
-						if row.Clicked() {
-							a.view = model.ViewTag
-							a.selectedTag = tc.Tag
-							a.selectedNotebookID = ""
-							a.refreshData()
-						}
-						row.Children(func() {
-							ui.Icon(c, assets.IconTag).FontSize(13).TextColor(p.TextMuted)
-							ui.Text(c, tc.Tag).FontSize(12).Grow(1).SingleLine()
-							ui.Text(c, fmt.Sprintf("%d", tc.Count)).FontSize(11).TextColor(p.TextMuted)
-						})
-					}
-				})
-			}
+		// 6. Bottom "退出登录" Row
+		ui.Row(c).AlignItems(ui.Center).Gap(6).Padding(6, 6).Cursor(ui.CursorPointer).Children(func() {
+			ui.Icon(c, assets.IconLogout).FontSize(14).TextColor(p.Muted)
+			ui.Text(c, "退出登录").FontSize(12).TextColor(p.Muted)
 		})
 	})
 }
 
-func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG, isSelected bool, count int, onClick func()) {
-	row := ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(6, 8).Radius(6).Cursor(ui.CursorPointer)
+func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG, isSelected bool, onClick func()) {
+	row := ui.Row(c).
+		AlignItems(ui.Center).
+		Gap(8).
+		Height(34).
+		Padding(0, 10).
+		Radius(6).
+		Cursor(ui.CursorPointer)
+
 	if isSelected {
-		row.Background(p.AccentTint).TextColor(p.Accent)
+		row.Background(p.SurfaceSelect)
 	}
+
 	if row.Clicked() {
 		onClick()
 	}
+
 	row.Children(func() {
-		icoColor := p.TextMuted
+		icoColor := p.Muted
 		if isSelected {
-			icoColor = p.Accent
+			icoColor = p.Ink
 		}
-		ui.Icon(c, icon).FontSize(16).TextColor(icoColor)
-		ui.Text(c, label).FontSize(13).Grow(1).SingleLine()
-		if count >= 0 {
-			ui.Text(c, fmt.Sprintf("%d", count)).FontSize(11).TextColor(p.TextMuted)
+		ui.Icon(c, icon).FontSize(15).TextColor(icoColor)
+
+		txt := ui.Text(c, label).FontSize(13).Grow(1).SingleLine()
+		if isSelected {
+			txt.Bold().TextColor(p.Ink)
+		} else {
+			txt.TextColor(p.InkSoft)
 		}
 	})
-}
-
-func parseHexColor(hexStr string, fallback ui.Color) ui.Color {
-	if len(hexStr) == 7 && hexStr[0] == '#' {
-		var r, g, b uint8
-		_, err := fmt.Sscanf(hexStr[1:], "%02x%02x%02x", &r, &g, &b)
-		if err == nil {
-			return ui.RGB(r, g, b)
-		}
-	}
-	return fallback
 }

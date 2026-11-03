@@ -1,8 +1,10 @@
 package markdown
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"xiangying/internal/model"
@@ -11,7 +13,6 @@ import (
 var (
 	tagRegex     = regexp.MustCompile(`(?:\s|^)#([a-zA-Z0-9_\p{Han}]+)`)
 	headingRegex = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
-	taskRegex    = regexp.MustCompile(`^(\s*[-*+]\s+\[)([ xX])(\]\s+.*)$`)
 )
 
 // ExtractTags finds all #tags outside fenced code blocks.
@@ -74,64 +75,6 @@ func ExtractHeadings(markdown string) []model.HeadingItem {
 	return headings
 }
 
-// ExtractTasks finds all task checkbox items from markdown lines.
-func ExtractTasks(markdown string, noteID, noteTitle, notebookName string) []model.TaskItem {
-	var tasks []model.TaskItem
-	lines := strings.Split(markdown, "\n")
-	inCodeBlock := false
-
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inCodeBlock = !inCodeBlock
-			continue
-		}
-		if inCodeBlock {
-			continue
-		}
-
-		if m := taskRegex.FindStringSubmatch(line); len(m) == 4 {
-			isDone := m[2] == "x" || m[2] == "X"
-			text := strings.TrimSpace(strings.TrimPrefix(m[3], "] "))
-			if text == "" {
-				text = "未命名任务"
-			}
-			tasks = append(tasks, model.TaskItem{
-				NoteID:       noteID,
-				NoteTitle:    noteTitle,
-				NotebookName: notebookName,
-				Text:         text,
-				Done:         isDone,
-				LineIndex:    i,
-			})
-		}
-	}
-
-	return tasks
-}
-
-// ToggleTaskInMarkdown toggles the task checkbox at lineIndex.
-func ToggleTaskInMarkdown(markdown string, lineIndex int) (string, bool) {
-	lines := strings.Split(markdown, "\n")
-	if lineIndex < 0 || lineIndex >= len(lines) {
-		return markdown, false
-	}
-
-	line := lines[lineIndex]
-	m := taskRegex.FindStringSubmatch(line)
-	if len(m) != 4 {
-		return markdown, false
-	}
-
-	newMark := "x"
-	if m[2] == "x" || m[2] == "X" {
-		newMark = " "
-	}
-
-	lines[lineIndex] = m[1] + newMark + m[3]
-	return strings.Join(lines, "\n"), true
-}
-
 // ExcerptPreview generates a clean plain-text preview of the note content.
 func ExcerptPreview(markdown string, maxLines int, maxLen int) string {
 	lines := strings.Split(markdown, "\n")
@@ -154,8 +97,9 @@ func ExcerptPreview(markdown string, maxLines int, maxLen int) string {
 		// Strip markdown syntax
 		cleaned := trimmed
 		cleaned = headingRegex.ReplaceAllString(cleaned, "$2")
-		cleaned = taskRegex.ReplaceAllString(cleaned, "$3")
-		cleaned = strings.TrimPrefix(cleaned, "] ")
+		cleaned = strings.TrimPrefix(cleaned, "- [ ] ")
+		cleaned = strings.TrimPrefix(cleaned, "- [x] ")
+		cleaned = strings.TrimPrefix(cleaned, "- [X] ")
 		cleaned = strings.TrimPrefix(cleaned, "- ")
 		cleaned = strings.TrimPrefix(cleaned, "* ")
 		cleaned = strings.TrimPrefix(cleaned, "> ")
@@ -172,7 +116,7 @@ func ExcerptPreview(markdown string, maxLines int, maxLen int) string {
 		}
 	}
 
-	result := strings.Join(cleanParts, " · ")
+	result := strings.Join(cleanParts, " ")
 	runes := []rune(result)
 	if len(runes) > maxLen {
 		return string(runes[:maxLen]) + "..."
@@ -188,4 +132,22 @@ func WordStats(text string) (words int, chars int) {
 	})
 	words = len(fields)
 	return words, chars
+}
+
+// RelativeDate formats a timestamp in a clean relative format matching original Xiangying.
+func RelativeDate(t time.Time) string {
+	diff := time.Since(t)
+	if diff < time.Minute {
+		return "刚刚"
+	}
+	if diff < time.Hour {
+		return fmt.Sprintf("%d 分钟前", int(diff.Minutes()))
+	}
+	if diff < 24*time.Hour {
+		return fmt.Sprintf("%d 小时前", int(diff.Hours()))
+	}
+	if diff < 7*24*time.Hour {
+		return fmt.Sprintf("%d 天前", int(diff.Hours()/24))
+	}
+	return t.Format("01-02")
 }

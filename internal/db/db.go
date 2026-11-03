@@ -79,7 +79,7 @@ func (s *Store) migrate() error {
 CREATE TABLE IF NOT EXISTS notebooks (
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL UNIQUE,
-	color TEXT NOT NULL DEFAULT '#2b594b',
+	color TEXT NOT NULL DEFAULT '#365e4e',
 	icon TEXT NOT NULL DEFAULT 'folder',
 	is_system INTEGER NOT NULL DEFAULT 0,
 	sort_order INTEGER NOT NULL DEFAULT 0,
@@ -127,60 +127,118 @@ func (s *Store) seed() error {
 	}
 
 	now := time.Now().Unix()
-	defaultNotebookID := NewUUID()
+	inboxNotebookID := NewUUID()
+	workNotebookID := NewUUID()
 
-	// Insert default notebook
+	// Seed "收件箱" (Inbox)
 	_, err = s.db.Exec(
 		"INSERT INTO notebooks (id, name, color, icon, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 0, ?, ?)",
-		defaultNotebookID, "随想速记", "#2b594b", "folder", now, now,
+		inboxNotebookID, "收件箱", "#365e4e", "inbox", now, now,
 	)
 	if err != nil {
 		return err
 	}
 
-	// Insert working notebook
-	workNotebookID := NewUUID()
+	// Seed "工作" (Work)
 	_, err = s.db.Exec(
 		"INSERT INTO notebooks (id, name, color, icon, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 1, ?, ?)",
-		workNotebookID, "工作与规划", "#c34a36", "book", now, now,
+		workNotebookID, "工作", "#365e4e", "folder", now, now,
 	)
 	if err != nil {
 		return err
 	}
 
-	// Welcome note
-	welcomeNoteID := NewUUID()
-	welcomeTitle := "欢迎体验全栈 Go 象映笔记"
-	welcomeContent := `# 欢迎使用象映笔记 (Xiangying Notes)
+	// Sample notes from Xiangying authentic design:
+	samples := []struct {
+		title      string
+		content    string
+		notebookID string
+		isFavorite bool
+		offsetMins int
+		tags       []string
+	}{
+		{
+			title: "项目周报的写作框架",
+			content: `这周的记录可以围绕三部分展开：已完成：访谈整理与重点归纳 正在推进：将常见需求整理成产品方案 下周计划：继续验证写作与搜索流程
 
-这是基于 **Go + MyGo 原生自绘 UI** 打造的现代化极速笔记软件。
+1. 已完成：访谈整理与重点归纳
+2. 正在推进：将常见需求整理成产品方案
+3. 下周计划：继续验证写作与搜索流程
 
-## ✨ 核心特性
-- **全栈纯 Go**：前后端完全使用 Go 编写，GPU 硬件加速原生渲染，毫秒级即时启动。
-- **暖白与石墨美学**：延续象映笔记经典视觉风格，松柏绿与朱砂红精心点缀。
-- **Markdown 实时编辑**：支持标题、粗体、斜体、列表、引用与代码块，并可输入 Markdown 快捷语法直接格式化。
-- **多笔记本与标签管理**：分类井井有条，支持自动从正文提取 #标签。
-- **跨笔记待办任务**：汇总所有待办，一键打勾快速跟进。
+相关笔记：产品想法、本周工作安排
 
-## 📋 快速待办清单
-- [x] 体验象映笔记极速原生界面
-- [ ] 创建一个属于你自己的笔记本
-- [ ] 写下今天的第一篇速记与随想
-- [ ] 体验全屏流畅富文本排版
+#周报 #项目`,
+			notebookID: workNotebookID,
+			isFavorite: true,
+			offsetMins: 24,
+			tags:       []string{"周报", "项目"},
+		},
+		{
+			title: "关于专注写作的摘记",
+			content: `写作时先保留原样，再决定怎样整理。我希望写作界面减少干扰，也能在回头查找时看见笔记之间的联系。
 
-快开始记录你的知识与灵感吧！ #象映笔记 #开始使用`
+#读书 #写作`,
+			notebookID: inboxNotebookID,
+			isFavorite: false,
+			offsetMins: 5,
+			tags:       []string{"读书", "写作"},
+		},
+		{
+			title: "产品想法",
+			content: `把记录和整理放在同一个工作空间里。先在收件箱记下内容，之后再按项目放进笔记本。相关笔记：本周工作安排
 
-	_, err = s.db.Exec(
-		"INSERT INTO notes (id, notebook_id, title, content_markdown, is_favorite, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NULL, ?, ?)",
-		welcomeNoteID, defaultNotebookID, welcomeTitle, welcomeContent, now, now,
-	)
-	if err != nil {
-		return err
+#产品 #灵感`,
+			notebookID: inboxNotebookID,
+			isFavorite: false,
+			offsetMins: 26,
+			tags:       []string{"产品", "灵感"},
+		},
+		{
+			title: "本周工作安排",
+			content: `本周要推进的几件事 整理访谈记录，归纳用户在写作和检索时最常遇到的问题。周二：完成问题清单 周三：...
+
+#工作 #计划`,
+			notebookID: workNotebookID,
+			isFavorite: false,
+			offsetMins: 7,
+			tags:       []string{"工作", "计划"},
+		},
+		{
+			title: "开始记录你的想法",
+			content: `欢迎来到象映笔记 这是你的第一个笔记。按下 Ctrl / 可以打开命令菜单，开始记录你的想法。
+写下值得保留的东西
+用笔记本整理上下文
+随时生成一个 7 天有效的只读分享`,
+			notebookID: inboxNotebookID,
+			isFavorite: false,
+			offsetMins: 9,
+			tags:       nil,
+		},
+		{
+			title: "周末散步记录",
+			content: `沿着河边走到老桥，路上遇到一排开花的树。天快黑时风有点凉，回家前买了两个蜡烛。
+下次想从图书馆那边出发，顺便把新开的面包店记下来。`,
+			notebookID: inboxNotebookID,
+			isFavorite: false,
+			offsetMins: 1,
+			tags:       nil,
+		},
 	}
 
-	// Seed tags
-	for _, tag := range []string{"象映笔记", "开始使用"} {
-		_, _ = s.db.Exec("INSERT INTO note_tags (note_id, tag) VALUES (?, ?)", welcomeNoteID, tag)
+	for _, item := range samples {
+		noteID := NewUUID()
+		t := now - int64(item.offsetMins*60)
+		favInt := 0
+		if item.isFavorite {
+			favInt = 1
+		}
+		_, _ = s.db.Exec(
+			"INSERT INTO notes (id, notebook_id, title, content_markdown, is_favorite, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+			noteID, item.notebookID, item.title, item.content, favInt, t, t,
+		)
+		for _, tag := range item.tags {
+			_, _ = s.db.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", noteID, tag)
+		}
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"testing"
+	"time"
 )
 
 func TestExtractTags(t *testing.T) {
@@ -49,42 +50,15 @@ More text
 	}
 }
 
-func TestTasks(t *testing.T) {
-	input := `# Tasks
-- [ ] Task 1
-- [x] Task 2
-* [ ] Task 3`
-
-	tasks := ExtractTasks(input, "n1", "Note 1", "Default")
-	if len(tasks) != 3 {
-		t.Fatalf("expected 3 tasks, got %d", len(tasks))
+func TestRelativeDate(t *testing.T) {
+	now := time.Now()
+	if d := RelativeDate(now); d != "刚刚" {
+		t.Errorf("expected 刚刚, got %s", d)
 	}
-	if tasks[0].Done != false || tasks[0].Text != "Task 1" || tasks[0].LineIndex != 1 {
-		t.Errorf("task 0 mismatch: %+v", tasks[0])
+	if d := RelativeDate(now.Add(-24 * time.Minute)); d != "24 分钟前" {
+		t.Errorf("expected 24 分钟前, got %s", d)
 	}
-	if tasks[1].Done != true || tasks[1].Text != "Task 2" || tasks[1].LineIndex != 2 {
-		t.Errorf("task 1 mismatch: %+v", tasks[1])
-	}
-
-	// Toggle task 0
-	updated, ok := ToggleTaskInMarkdown(input, 1)
-	if !ok {
-		t.Fatal("failed to toggle task 0")
-	}
-	t1 := ExtractTasks(updated, "n1", "Note 1", "Default")
-	if !t1[0].Done {
-		t.Errorf("expected task 0 to be done after toggle")
-	}
-}
-
-func TestExcerptPreview(t *testing.T) {
-	input := `# Welcome
-This is **bold** text and ` + "`code`" + `.
-> A quote block
-- List item`
-
-	preview := ExcerptPreview(input, 2, 50)
-	if preview == "" {
-		t.Errorf("preview should not be empty")
+	if d := RelativeDate(now.Add(-2 * time.Hour)); d != "2 小时前" {
+		t.Errorf("expected 2 小时前, got %s", d)
 	}
 }

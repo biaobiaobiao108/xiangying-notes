@@ -23,6 +23,10 @@ func (s *Store) ListNotes(view model.ViewType, notebookID, tag, search string) (
 		conditions = append(conditions, "n.deleted_at IS NOT NULL")
 	case model.ViewFavorites:
 		conditions = append(conditions, "n.deleted_at IS NULL", "n.is_favorite = 1")
+	case model.ViewInbox:
+		conditions = append(conditions, "n.deleted_at IS NULL", "nb.name = '收件箱'")
+	case model.ViewShared:
+		conditions = append(conditions, "n.deleted_at IS NULL")
 	case model.ViewNotebook:
 		conditions = append(conditions, "n.deleted_at IS NULL")
 		if notebookID != "" {
@@ -153,7 +157,7 @@ func (s *Store) CreateNote(notebookID, title, content string) (*model.Note, erro
 	defer s.mu.Unlock()
 
 	if notebookID == "" {
-		// default to first notebook
+		// default to inbox or first notebook
 		_ = s.db.QueryRow("SELECT id FROM notebooks ORDER BY is_system DESC, sort_order ASC LIMIT 1").Scan(&notebookID)
 	}
 	if title == "" {
@@ -311,48 +315,4 @@ ORDER BY count DESC, nt.tag ASC
 		tags = append(tags, tc)
 	}
 	return tags, rows.Err()
-}
-
-// ListAllTasks collects task items across all active notes.
-func (s *Store) ListAllTasks() ([]model.TaskItem, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	query := `
-SELECT n.id, n.title, nb.name as notebook_name, n.content_markdown
-FROM notes n
-LEFT JOIN notebooks nb ON nb.id = n.notebook_id
-WHERE n.deleted_at IS NULL
-ORDER BY n.updated_at DESC
-`
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("list tasks query: %w", err)
-	}
-	defer rows.Close()
-
-	var allTasks []model.TaskItem
-	for rows.Next() {
-		var id, title, notebookName, content string
-		if err := rows.Scan(&id, &title, &notebookName, &content); err != nil {
-			return nil, err
-		}
-		tasks := markdown.ExtractTasks(content, id, title, notebookName)
-		allTasks = append(allTasks, tasks...)
-	}
-
-	return allTasks, rows.Err()
-}
-
-// ToggleTask toggles a task item in note markdown.
-func (s *Store) ToggleTask(noteID string, lineIndex int) error {
-	note, err := s.GetNote(noteID)
-	if err != nil {
-		return err
-	}
-	newContent, ok := markdown.ToggleTaskInMarkdown(note.ContentMarkdown, lineIndex)
-	if !ok {
-		return fmt.Errorf("task at line %d not found", lineIndex)
-	}
-	return s.UpdateNote(noteID, note.Title, newContent)
 }

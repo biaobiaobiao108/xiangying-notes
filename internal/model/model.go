@@ -6,12 +6,21 @@ import "time"
 type ViewType string
 
 const (
+	ViewInbox     ViewType = "inbox"
 	ViewAll       ViewType = "all"
 	ViewFavorites ViewType = "favorites"
-	ViewTasks     ViewType = "tasks"
+	ViewShared    ViewType = "shared"
 	ViewTrash     ViewType = "trash"
 	ViewNotebook  ViewType = "notebook"
 	ViewTag       ViewType = "tag"
+)
+
+// LayoutMode defines whether we are in 3-column split view or card grid view.
+type LayoutMode string
+
+const (
+	LayoutSplit LayoutMode = "split"
+	LayoutGrid  LayoutMode = "grid"
 )
 
 // Notebook represents a category folder for organizing notes.
@@ -40,16 +49,6 @@ type Note struct {
 	Preview         string     `json:"preview"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
-}
-
-// TaskItem represents an extracted markdown task item (- [ ] / - [x]).
-type TaskItem struct {
-	NoteID       string `json:"note_id"`
-	NoteTitle    string `json:"note_title"`
-	NotebookName string `json:"notebook_name"`
-	Text         string `json:"text"`
-	Done         bool   `json:"done"`
-	LineIndex    int    `json:"line_index"`
 }
 
 // HeadingItem represents a heading for the document outline.

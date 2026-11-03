@@ -41,7 +41,7 @@ func TestStore(t *testing.T) {
 	}
 
 	// Test Create Note
-	newNote, err := store.CreateNote(notebooks[0].ID, "我的第一篇测试", "# 测试内容\n这是一篇带有 #测试 标签的笔记。\n- [ ] 待办事项A")
+	newNote, err := store.CreateNote(notebooks[0].ID, "我的第一篇测试", "# 测试内容\n这是一篇带有 #测试 标签的笔记。")
 	if err != nil {
 		t.Fatalf("CreateNote failed: %v", err)
 	}
@@ -63,15 +63,6 @@ func TestStore(t *testing.T) {
 	}
 	if !foundTestTag {
 		t.Errorf("expected tag '测试' in tags: %+v", tags)
-	}
-
-	// Test Tasks
-	tasks, err := store.ListAllTasks()
-	if err != nil {
-		t.Fatalf("ListAllTasks failed: %v", err)
-	}
-	if len(tasks) == 0 {
-		t.Errorf("expected tasks, got 0")
 	}
 
 	// Test Favorite

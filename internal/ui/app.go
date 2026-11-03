@@ -15,7 +15,8 @@ import (
 type App struct {
 	store *db.Store
 
-	// Navigation & Filtering
+	// Layout & Navigation
+	layoutMode         model.LayoutMode
 	view               model.ViewType
 	selectedNotebookID string
 	selectedTag        string
@@ -25,7 +26,6 @@ type App struct {
 	notebooks []model.Notebook
 	notes     []model.Note
 	tags      []model.TagCount
-	tasks     []model.TaskItem
 
 	// Current Note & Editor
 	selectedNoteID   string
@@ -40,12 +40,7 @@ type App struct {
 	dialogNewNotebook       bool
 	dialogNotebookName      string
 	dialogNotebookColor     string
-	dialogRenameNotebook    bool
-	dialogRenameNotebookID  string
-	dialogRenameName        string
 	dialogConfirmEmptyTrash bool
-	dialogConfirmDeleteNote bool
-	noteToDeleteID          string
 
 	// Toast
 	toastMessage string
@@ -56,8 +51,9 @@ type App struct {
 func NewApp(store *db.Store) *App {
 	app := &App{
 		store:               store,
+		layoutMode:          model.LayoutSplit,
 		view:                model.ViewAll,
-		dialogNotebookColor: "#2b594b",
+		dialogNotebookColor: "#365e4e",
 	}
 	app.refreshData()
 	if len(app.notes) > 0 {
@@ -70,14 +66,11 @@ func (a *App) refreshData() {
 	a.notebooks, _ = a.store.ListNotebooks()
 	a.notes, _ = a.store.ListNotes(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery)
 	a.tags, _ = a.store.ListAllTags()
-	if a.view == model.ViewTasks {
-		a.tasks, _ = a.store.ListAllTasks()
-	}
 }
 
 func (a *App) showToast(msg string) {
 	a.toastMessage = msg
-	a.toastUntil = time.Now().Add(3 * time.Second)
+	a.toastUntil = time.Now().Add(2500 * time.Millisecond)
 }
 
 func (a *App) selectNote(id string) {
@@ -145,23 +138,24 @@ func (a *App) View(c *ui.Context) {
 		a.actionNewNote()
 	}
 
-	ui.Row(c).Fill().Background(p.Background).Children(func() {
-		// 1. Sidebar (Width: 210)
+	ui.Row(c).Fill().Background(p.Canvas).Children(func() {
+		// 1. Sidebar (Width: 215)
 		a.renderSidebar(c, p)
 
-		// Vertical Divider
-		ui.Box(c).Width(1).FillHeight().Background(p.Border)
+		// Divider
+		ui.Box(c).Width(1).FillHeight().Background(p.BorderSoft)
 
-		// 2. Note List Column (Width: 280)
-		a.renderNoteList(c, p)
-
-		// Vertical Divider
-		ui.Box(c).Width(1).FillHeight().Background(p.Border)
-
-		// 3. Workspace (Editor or Tasks View)
-		if a.view == model.ViewTasks {
-			a.renderTasksView(c, p)
+		// 2. Main Content Area (LayoutGrid vs LayoutSplit)
+		if a.layoutMode == model.LayoutGrid {
+			a.renderCardGrid(c, p)
 		} else {
+			// Middle: Note List (Width: 290)
+			a.renderNoteList(c, p)
+
+			// Divider
+			ui.Box(c).Width(1).FillHeight().Background(p.BorderSoft)
+
+			// Right: Editor Workspace
 			a.renderWorkspace(c, p)
 		}
 	})
@@ -180,6 +174,7 @@ func (a *App) actionNewNote() {
 	if err == nil && newNote != nil {
 		a.refreshData()
 		a.selectNote(newNote.ID)
+		a.layoutMode = model.LayoutSplit
 		a.showToast("已创建新笔记")
 	}
 }
@@ -187,12 +182,12 @@ func (a *App) actionNewNote() {
 func (a *App) renderToast(c *ui.Context, p Palette) {
 	if a.toastMessage != "" && time.Now().Before(a.toastUntil) {
 		ui.Column(c).Absolute().Bottom(24).Center().FillWidth().PassThrough().Children(func() {
-			ui.Row(c).Padding(8, 16).Radius(8).
+			ui.Row(c).Padding(6, 14).Radius(20).
 				Background(p.Surface).
 				Border(1, p.Border).
-				Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.12)).
+				Shadow(0, 4, 12, 0, ui.RGBA(32, 38, 33, 0.08)).
 				Children(func() {
-					ui.Text(c, a.toastMessage).FontSize(13).TextColor(p.Text)
+					ui.Text(c, a.toastMessage).FontSize(12).TextColor(p.Ink)
 				})
 		})
 	}

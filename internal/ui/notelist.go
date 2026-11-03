@@ -2,137 +2,147 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
-	"xiangying/assets"
+	"xiangying/internal/markdown"
 	"xiangying/internal/model"
 )
 
 func (a *App) renderNoteList(c *ui.Context, p Palette) {
-	ui.Column(c).Width(280).Shrink(0).FillHeight().Background(p.Surface).Padding(12, 10).Gap(10).Children(func() {
-		// Search Input
-		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-			if ui.TextInput(c, &a.searchQuery).Placeholder("搜索标题、内容与标签...").Grow(1).AutoFocus().Changed() {
-				a.refreshData()
-			}
-		})
-
-		// Header Bar
-		ui.Row(c).AlignItems(ui.Center).Padding(2, 2).Children(func() {
-			title := "所有笔记"
-			switch a.view {
-			case model.ViewFavorites:
-				title = "我的收藏"
-			case model.ViewTrash:
-				title = "废纸篓"
-			case model.ViewNotebook:
-				for _, nb := range a.notebooks {
-					if nb.ID == a.selectedNotebookID {
-						title = nb.Name
-						break
+	ui.Column(c).Width(290).Shrink(0).FillHeight().Background(p.Canvas).Children(func() {
+		// 1. Top Header Bar (Height ~52px)
+		ui.Row(c).
+			Height(54).
+			Padding(8, 16).
+			AlignItems(ui.Center).
+			BorderWidth(0, 0, 1, 0).
+			BorderColor(p.BorderSoft).
+			Children(func() {
+				// Left: Title & Note Count
+				ui.Column(c).Gap(1).Grow(1).Children(func() {
+					title := "全部笔记"
+					switch a.view {
+					case model.ViewInbox:
+						title = "收件箱"
+					case model.ViewFavorites:
+						title = "收藏"
+					case model.ViewShared:
+						title = "已分享"
+					case model.ViewTrash:
+						title = "回收站"
+					case model.ViewNotebook:
+						for _, nb := range a.notebooks {
+							if nb.ID == a.selectedNotebookID {
+								title = nb.Name
+								break
+							}
+						}
+					case model.ViewTag:
+						title = "#" + a.selectedTag
 					}
-				}
-			case model.ViewTag:
-				title = "#" + a.selectedTag
-			}
 
-			ui.Text(c, title).FontSize(13).Bold().TextColor(p.Text)
-			ui.Text(c, fmt.Sprintf(" (%d)", len(a.notes))).FontSize(12).TextColor(p.TextMuted).Grow(1)
+					ui.Text(c, title).FontSize(14).Bold().TextColor(p.Ink)
+					ui.Text(c, fmt.Sprintf("%d 篇笔记", len(a.notes))).FontSize(11).TextColor(p.SoftMuted)
+				})
 
-			if a.view == model.ViewTrash {
-				if len(a.notes) > 0 && ui.Button(c, "清空").KeepFocus().Padding(2, 8).FontSize(11).Clicked() {
-					a.dialogConfirmEmptyTrash = true
-				}
-			} else {
-				if ui.PrimaryButton(c, "+ 新建").KeepFocus().Padding(3, 10).FontSize(12).Clicked() {
-					a.actionNewNote()
-				}
-			}
-		})
-
-		// Notes List (Scrollable)
-		ui.Column(c).Grow(1).Gap(6).Children(func() {
-			if len(a.notes) == 0 {
-				ui.Column(c).Fill().Center().Gap(6).Children(func() {
-					ui.Text(c, "暂无笔记").FontSize(13).TextColor(p.TextMuted)
-					if a.view != model.ViewTrash {
-						if ui.Button(c, "新建第一篇笔记").Clicked() {
-							a.actionNewNote()
+				// Right: Sort Menu / Empty Trash
+				if a.view == model.ViewTrash {
+					if len(a.notes) > 0 {
+						emptyBtn := ui.Button(c, "清空").KeepFocus().Padding(2, 6).FontSize(11).TextColor(p.Danger)
+						if emptyBtn.Clicked() {
+							a.dialogConfirmEmptyTrash = true
 						}
 					}
+				} else {
+					ui.Row(c).AlignItems(ui.Center).Gap(3).Cursor(ui.CursorPointer).Children(func() {
+						ui.Text(c, "最近更新").FontSize(11).TextColor(p.Muted)
+						ui.Text(c, "∨").FontSize(9).TextColor(p.Muted)
+					})
+				}
+			})
+
+		// 2. Scrollable Note List Items
+		ui.Column(c).Grow(1).Children(func() {
+			if len(a.notes) == 0 {
+				ui.Column(c).Fill().Center().Gap(6).Children(func() {
+					ui.Text(c, "暂无笔记").FontSize(13).TextColor(p.Muted)
 				})
 				return
 			}
 
 			for _, note := range a.notes {
-				a.renderNoteCard(c, p, note)
+				a.renderNoteListItem(c, p, note)
 			}
 		})
 	})
 }
 
-func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note) {
+func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note) {
 	isSelected := note.ID == a.selectedNoteID
 
-	card := ui.Column(c.Key(note.ID)).
-		Padding(8, 10).
-		Radius(8).
+	item := ui.Column(c.Key(note.ID)).
+		Padding(12, 16).
 		Gap(4).
-		Border(1, p.Border).
+		BorderWidth(0, 0, 1, 0).
+		BorderColor(p.BorderSoft).
 		Cursor(ui.CursorPointer)
 
 	if isSelected {
-		card.Background(p.AccentTint).Border(1, p.Accent)
+		item.Background(p.Surface)
 	} else {
-		card.Background(p.Surface)
+		item.Background(p.Canvas)
 	}
 
-	if card.Clicked() && note.ID != a.selectedNoteID {
+	if item.Clicked() && note.ID != a.selectedNoteID {
 		a.saveCurrentNote()
 		a.selectNote(note.ID)
 	}
 
-	card.Children(func() {
-		// Title & Star
-		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-			ui.Text(c, note.Title).FontSize(13).Bold().TextColor(p.Text).Grow(1).SingleLine()
-			if note.IsFavorite {
-				ui.Icon(c, assets.IconStarFilled).FontSize(12).TextColor(p.Star)
-			}
-		})
+	item.Children(func() {
+		// Title
+		ui.Text(c, note.Title).
+			FontSize(13.5).
+			Bold().
+			TextColor(p.Ink).
+			SingleLine()
 
-		// Preview excerpt
+		// Excerpt Preview (2 lines)
 		if note.Preview != "" {
-			ui.Text(c, note.Preview).FontSize(11).TextColor(p.TextMuted).MaxLines(2)
+			ui.Text(c, note.Preview).
+				FontSize(11.5).
+				TextColor(p.Muted).
+				MaxLines(2).
+				Margin(2, 0, 4, 0)
 		}
 
-		// Bottom info (Date & Tags or Trash actions)
-		ui.Row(c).AlignItems(ui.Center).Gap(6).Margin(2, 0, 0, 0).Children(func() {
-			dateStr := note.UpdatedAt.Format("01-02 15:04")
-			ui.Text(c, dateStr).FontSize(10).TextColor(p.TextMuted).Grow(1)
+		// Meta Row (Notebook + Tags + Relative Date)
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			// Left Meta: Notebook name + tags
+			ui.Row(c).AlignItems(ui.Center).Gap(4).Grow(1).Children(func() {
+				nbName := note.NotebookName
+				if nbName == "" {
+					nbName = "收件箱"
+				}
+				ui.Text(c, nbName).FontSize(11).TextColor(p.SoftMuted)
 
-			if a.view == model.ViewTrash {
-				if ui.Button(c, "恢复").KeepFocus().Padding(1, 6).FontSize(10).Clicked() {
-					_ = a.store.RestoreFromTrash(note.ID)
-					a.refreshData()
-					a.showToast("已恢复笔记")
-				}
-				if ui.Button(c, "删除").KeepFocus().Padding(1, 6).FontSize(10).Clicked() {
-					_ = a.store.DeletePermanently(note.ID)
-					a.refreshData()
-					a.showToast("已永久删除")
-				}
-			} else {
-				for i, tag := range note.Tags {
-					if i >= 2 {
-						break
+				if len(note.Tags) > 0 {
+					var tagStrings []string
+					for i, tag := range note.Tags {
+						if i >= 3 {
+							break
+						}
+						tagStrings = append(tagStrings, "#"+tag)
 					}
-					ui.Box(c).Padding(1, 5).Radius(4).Background(p.Background).Children(func() {
-						ui.Text(c, "#"+tag).FontSize(9).TextColor(p.Accent)
-					})
+					ui.Text(c, "·").FontSize(10).TextColor(p.SoftMuted)
+					ui.Text(c, strings.Join(tagStrings, " ")).FontSize(11).TextColor(p.Muted)
 				}
-			}
+			})
+
+			// Right: Relative Time
+			relTime := markdown.RelativeDate(note.UpdatedAt)
+			ui.Text(c, relTime).FontSize(11).TextColor(p.SoftMuted)
 		})
 	})
 }
