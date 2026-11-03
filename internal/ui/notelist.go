@@ -12,16 +12,17 @@ import (
 
 func (a *App) renderNoteList(c *ui.Context, p Palette) {
 	ui.Column(c).Width(290).Shrink(0).FillHeight().Background(p.Canvas).Children(func() {
-		// 1. Top Header Bar (Height ~52px)
+		// 1. Ghost Header Bar (Height 46px, DragWindow)
 		ui.Row(c).
-			Height(54).
-			Padding(8, 16).
+			Height(46).
+			Padding(0, 16).
 			AlignItems(ui.Center).
 			BorderWidth(0, 0, 1, 0).
 			BorderColor(p.BorderSoft).
+			DragWindow().
 			Children(func() {
 				// Left: Title & Note Count
-				ui.Column(c).Gap(1).Grow(1).Children(func() {
+				ui.Column(c).Gap(0).Grow(1).Children(func() {
 					title := "全部笔记"
 					switch a.view {
 					case model.ViewInbox:
@@ -43,14 +44,21 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 						title = "#" + a.selectedTag
 					}
 
-					ui.Text(c, title).FontSize(14).Bold().TextColor(p.Ink)
-					ui.Text(c, fmt.Sprintf("%d 篇笔记", len(a.notes))).FontSize(11).TextColor(p.SoftMuted)
+					ui.Text(c, title).FontSize(13.5).Bold().TextColor(p.Ink)
+					ui.Text(c, fmt.Sprintf("%d 篇笔记", len(a.notes))).FontSize(10.5).TextColor(p.SoftMuted)
 				})
 
 				// Right: Sort Menu / Empty Trash
 				if a.view == model.ViewTrash {
 					if len(a.notes) > 0 {
-						emptyBtn := ui.Button(c, "清空").KeepFocus().Padding(2, 6).FontSize(11).TextColor(p.Danger)
+						emptyBtn := ui.Button(c, "清空").
+							KeepFocus().
+							Padding(3, 8).
+							Radius(5).
+							Background(ui.Color{}).
+							Border(0, ui.Color{}).
+							FontSize(11).
+							TextColor(p.Danger)
 						if emptyBtn.Clicked() {
 							a.dialogConfirmEmptyTrash = true
 						}

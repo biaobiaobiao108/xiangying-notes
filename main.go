@@ -46,12 +46,14 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:     "象映笔记",
-			Width:     1120,
-			Height:    720,
-			MinWidth:  800,
-			MinHeight: 520,
-			Content:   ui.View(app.View),
+			Title:          "象映笔记",
+			Width:          1120,
+			Height:         720,
+			MinWidth:       800,
+			MinHeight:      520,
+			TitleBarStyle:  mygo.TitleBarHidden,
+			TitleBarHeight: 46,
+			Content:        ui.View(app.View),
 		})
 		if len(appIconPNG) > 0 {
 			win.SetIcon(appIconPNG)

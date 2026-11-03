@@ -28,14 +28,18 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 		}
 	}
 
+	bar := c.TitleBar()
+	rightPad := max(int(bar.Right)+8, 20)
+
 	ui.Column(c).Grow(1).FillHeight().Background(p.Canvas).Children(func() {
-		// 1. Top Header Bar (Height ~52px)
+		// 1. Ghost Header Bar (Height 46px, seamlessly integrated with window controls)
 		ui.Row(c).
-			Height(54).
-			Padding(0, 24).
+			Height(46).
+			Padding(0, float32(rightPad), 0, 24).
 			AlignItems(ui.Center).
 			BorderWidth(0, 0, 1, 0).
 			BorderColor(p.BorderSoft).
+			DragWindow().
 			Children(func() {
 				// Left: Last Edited Time
 				editTimeStr := "刚刚"
@@ -49,46 +53,59 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 					ui.Text(c, a.currentNoteTitle).FontSize(12).TextColor(p.Muted).SingleLine()
 				})
 
-				// Right Action Buttons (Hairline, clean icons)
-				ui.Row(c).AlignItems(ui.Center).Gap(14).Children(func() {
-					// Export / Share
-					expBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("复制 Markdown")
-					if expBtn.Clicked() {
+				// Right Ghost Action Buttons
+				ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
+					// Ghost helper
+					ghostBtn := func(icon *ui.SVG, tip string, action func()) {
+						b := ui.Button(c, "").
+							KeepFocus().
+							Padding(4, 5).
+							Radius(5).
+							Background(ui.Color{}).
+							Border(0, ui.Color{}).
+							Tooltip(tip)
+						if b.Clicked() {
+							action()
+						}
+						b.Children(func() {
+							ui.Icon(c, icon).FontSize(15).TextColor(p.Muted)
+						})
+					}
+
+					// Export / Copy
+					ghostBtn(assets.IconExport, "复制 Markdown", func() {
 						if a.currentDoc != nil {
 							c.Services().WriteClipboard(a.currentDoc.Text().Markdown())
 							a.showToast("已复制 Markdown")
 						}
-					}
-					expBtn.Children(func() {
-						ui.Icon(c, assets.IconExport).FontSize(15).TextColor(p.Muted)
 					})
 
 					// Undo / History
-					undoBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("撤销")
-					if undoBtn.Clicked() && a.currentDoc != nil && a.currentDoc.CanUndo() {
-						a.currentDoc.Undo()
-						a.saveCurrentNote()
-					}
-					undoBtn.Children(func() {
-						ui.Icon(c, assets.IconHistory).FontSize(15).TextColor(p.Muted)
+					ghostBtn(assets.IconHistory, "撤销", func() {
+						if a.currentDoc != nil && a.currentDoc.CanUndo() {
+							a.currentDoc.Undo()
+							a.saveCurrentNote()
+						}
 					})
 
-					// Fullscreen Toggle (Card view vs split view)
-					expandBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("全屏 / 切换视图")
-					if expandBtn.Clicked() {
+					// Fullscreen Toggle
+					ghostBtn(assets.IconExpand, "切换布局", func() {
 						if a.layoutMode == model.LayoutGrid {
 							a.layoutMode = model.LayoutSplit
 						} else {
 							a.layoutMode = model.LayoutGrid
 						}
-					}
-					expandBtn.Children(func() {
-						ui.Icon(c, assets.IconExpand).FontSize(15).TextColor(p.Muted)
 					})
 
 					// Star Favorite
 					if currentNote != nil {
-						starBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("收藏")
+						starBtn := ui.Button(c, "").
+							KeepFocus().
+							Padding(4, 5).
+							Radius(5).
+							Background(ui.Color{}).
+							Border(0, ui.Color{}).
+							Tooltip("收藏")
 						if starBtn.Clicked() {
 							fav, _ := a.store.ToggleFavorite(currentNote.ID)
 							currentNote.IsFavorite = fav
@@ -106,18 +123,13 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 					}
 
 					// Note Link
-					linkBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("复制链接")
-					if linkBtn.Clicked() {
+					ghostBtn(assets.IconLink, "复制笔记链接", func() {
 						a.showToast("已复制笔记引用")
-					}
-					linkBtn.Children(func() {
-						ui.Icon(c, assets.IconLink).FontSize(15).TextColor(p.Muted)
 					})
 
 					// Trash Can
 					if currentNote != nil && a.view != model.ViewTrash {
-						trashBtn := ui.Button(c, "").KeepFocus().Padding(2, 4).Tooltip("移入回收站")
-						if trashBtn.Clicked() {
+						ghostBtn(assets.IconTrash, "移入回收站", func() {
 							_ = a.store.MoveToTrash(currentNote.ID)
 							a.refreshData()
 							if len(a.notes) > 0 {
@@ -126,9 +138,6 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 								a.selectNote("")
 							}
 							a.showToast("已移至回收站")
-						}
-						trashBtn.Children(func() {
-							ui.Icon(c, assets.IconTrash).FontSize(15).TextColor(p.Muted)
 						})
 					}
 				})
@@ -136,14 +145,14 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 
 		// 2. Editor Body & Optional Outline Drawer
 		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-			// Writing Area (Spacious, elegant)
+			// Writing Area (Spacious, elegant, completely borderless)
 			ui.Column(c).
 				Grow(1).
 				FillHeight().
 				Padding(32, 48).
 				Children(func() {
-					// Note Large Document Title (28px, Bold, Ink)
-					if ui.TextInput(c, &a.currentNoteTitle).
+					// Note Large Document Title: Seamless TextInputBase without box!
+					if ui.TextInputBase(c, &a.currentNoteTitle).
 						Placeholder("未命名笔记").
 						FontSize(28).
 						Bold().
@@ -153,13 +162,13 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 						a.saveCurrentNote()
 					}
 
-					ui.Box(c).Height(20)
+					ui.Box(c).Height(18)
 
-					// Pure Markdown & Rich Text Document
-					changed := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
+					// Pure Markdown & Rich Text Document: Seamless EditorBase without box or outline!
+					changed := richtext.EditorBase(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
 						Label:       "笔记正文",
 						Placeholder: "开始记录你的想法...",
-					}).Grow(1).Changed()
+					}).Grow(1).FillWidth().Changed()
 
 					if changed {
 						a.saveCurrentNote()
@@ -226,7 +235,14 @@ func (a *App) renderOutlineDrawer(c *ui.Context, p Palette) {
 	ui.Column(c).Width(190).Shrink(0).FillHeight().Background(p.Canvas).Padding(16, 14).Gap(10).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "大纲").FontSize(12).Bold().TextColor(p.Muted).Grow(1)
-			closeBtn := ui.Button(c, "×").KeepFocus().Padding(1, 4).FontSize(13).TextColor(p.Muted)
+			closeBtn := ui.Button(c, "×").
+				KeepFocus().
+				Padding(1, 4).
+				Radius(4).
+				Background(ui.Color{}).
+				Border(0, ui.Color{}).
+				FontSize(13).
+				TextColor(p.Muted)
 			if closeBtn.Clicked() {
 				a.showOutline = false
 			}

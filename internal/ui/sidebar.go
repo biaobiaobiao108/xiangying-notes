@@ -10,9 +10,9 @@ import (
 )
 
 func (a *App) renderSidebar(c *ui.Context, p Palette) {
-	ui.Column(c).Width(215).Shrink(0).FillHeight().Background(p.Canvas).Padding(14, 12).Gap(10).Children(func() {
-		// 1. Top Brand Header & View Switcher
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Width(215).Shrink(0).FillHeight().Background(p.Canvas).Padding(0, 12).Children(func() {
+		// 1. Ghost Titlebar / Header Row (Height 46px, DragWindow)
+		ui.Row(c).Height(46).AlignItems(ui.Center).DragWindow().Children(func() {
 			// Brand Logo & Text
 			ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
 				ui.Icon(c, assets.ElephantLogo).FontSize(20).TextColor(p.Ink)
@@ -21,8 +21,15 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 
 			ui.Box(c).Grow(1)
 
-			// Layout Switcher Button (3-column vs Card Grid)
-			switcher := ui.Button(c, "").KeepFocus().Padding(3, 5).Radius(5).Tooltip("切换布局视图")
+			// Ghost Layout Switcher Button
+			switcher := ui.Button(c, "").
+				KeepFocus().
+				Padding(4, 5).
+				Radius(5).
+				Background(ui.Color{}).
+				Border(0, ui.Color{}).
+				Tooltip("切换布局视图")
+
 			if switcher.Clicked() {
 				if a.layoutMode == model.LayoutGrid {
 					a.layoutMode = model.LayoutSplit
@@ -39,7 +46,9 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			})
 		})
 
-		// 2. Primary "+ 新建笔记" Button (Pine Green, restrained, rounded 8px)
+		ui.Box(c).Height(4)
+
+		// 2. Primary "+ 新建笔记" Button (Pine Green, rounded 8px)
 		newBtn := ui.Button(c, "+ 新建笔记").
 			KeepFocus().
 			FillWidth().
@@ -54,30 +63,35 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			a.actionNewNote()
 		}
 
-		// 3. Search Field (with Search Icon and Ctrl / hint)
+		ui.Box(c).Height(10)
+
+		// 3. Search Field: Completely seamless with TextInputBase!
 		ui.Row(c).
 			AlignItems(ui.Center).
 			Gap(6).
 			Height(34).
-			Padding(0, 8).
+			Padding(0, 10).
 			Radius(8).
 			Background(p.SearchBg).
 			Border(1, p.Border).
 			Children(func() {
 				ui.Icon(c, assets.IconSearch).FontSize(13).TextColor(p.Muted)
-				ui.TextInput(c, &a.searchQuery).
+				ui.TextInputBase(c, &a.searchQuery).
 					Placeholder("搜索笔记或 #标签").
 					FontSize(12).
+					TextColor(p.Ink).
 					Grow(1).
 					Changed()
 				// Hint badge
-				ui.Box(c).Padding(1, 4).Radius(4).Background(p.Canvas).Border(1, p.BorderSoft).Children(func() {
+				ui.Box(c).Padding(1, 5).Radius(4).Background(p.Canvas).Border(1, p.BorderSoft).Children(func() {
 					ui.Text(c, "Ctrl /").FontSize(10).TextColor(p.SoftMuted)
 				})
 			})
 
+		ui.Box(c).Height(8)
+
 		// 4. Navigation Menu
-		ui.Column(c).Gap(2).Margin(4, 0, 0, 0).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
 			a.renderNavRow(c, p, "收件箱", assets.IconInbox, a.view == model.ViewInbox, func() {
 				a.view = model.ViewInbox
 				a.selectedNotebookID = ""
@@ -111,7 +125,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 		})
 
 		// 5. Notebooks Section ("笔记本")
-		ui.Column(c).Gap(3).Margin(12, 0, 0, 0).Grow(1).Children(func() {
+		ui.Column(c).Gap(3).Margin(14, 0, 0, 0).Grow(1).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Padding(2, 6).Children(func() {
 				ui.Text(c, "笔记本").FontSize(11).TextColor(p.Muted).Grow(1)
 				addBtn := ui.Button(c, "+").KeepFocus().Padding(1, 4).FontSize(13).TextColor(p.Muted).Tooltip("新建笔记本")
@@ -124,7 +138,6 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			// List of Notebooks
 			ui.Column(c).Gap(2).Children(func() {
 				for _, nb := range a.notebooks {
-					// Don't duplicate "收件箱" in notebook list if it's in top navigation
 					if nb.Name == "收件箱" {
 						continue
 					}
@@ -164,7 +177,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 		})
 
 		// 6. Bottom "退出登录" Row
-		ui.Row(c).AlignItems(ui.Center).Gap(6).Padding(6, 6).Cursor(ui.CursorPointer).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(6).Padding(8, 6).Cursor(ui.CursorPointer).Children(func() {
 			ui.Icon(c, assets.IconLogout).FontSize(14).TextColor(p.Muted)
 			ui.Text(c, "退出登录").FontSize(12).TextColor(p.Muted)
 		})
