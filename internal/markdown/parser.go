@@ -49,21 +49,58 @@ func LooksLikeMarkdown(text string) bool {
 	return false
 }
 
+type codeFence struct {
+	marker byte
+	length int
+}
+
+// skipCodeFence reports whether line belongs to a fenced code block, including
+// its opening and closing fence lines. A fence can only be closed by a run of
+// the same marker that is at least as long as its opener.
+func skipCodeFence(line string, fence *codeFence) bool {
+	trimmed := strings.TrimLeft(line, " ")
+	indent := len(line) - len(trimmed)
+	if indent > 3 || trimmed == "" {
+		return fence.length > 0
+	}
+
+	marker := trimmed[0]
+	if marker != '`' && marker != '~' {
+		return fence.length > 0
+	}
+	run := 0
+	for run < len(trimmed) && trimmed[run] == marker {
+		run++
+	}
+
+	if fence.length > 0 {
+		if marker == fence.marker && run >= fence.length && strings.TrimSpace(trimmed[run:]) == "" {
+			*fence = codeFence{}
+		}
+		return true
+	}
+	if run < 3 {
+		return false
+	}
+	// Backticks cannot appear in the info string of a backtick fence.
+	if marker == '`' && strings.Contains(trimmed[run:], "`") {
+		return false
+	}
+	fence.marker = marker
+	fence.length = run
+	return true
+}
+
 // ExtractTags finds all #tags outside fenced code blocks.
 func ExtractTags(markdown string) []string {
 	var tags []string
 	seen := make(map[string]bool)
 
 	lines := strings.Split(markdown, "\n")
-	inCodeBlock := false
+	var fence codeFence
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inCodeBlock = !inCodeBlock
-			continue
-		}
-		if inCodeBlock {
+		if skipCodeFence(line, &fence) {
 			continue
 		}
 
@@ -86,15 +123,10 @@ func ExtractTags(markdown string) []string {
 func ExtractHeadings(markdown string) []model.HeadingItem {
 	var headings []model.HeadingItem
 	lines := strings.Split(markdown, "\n")
-	inCodeBlock := false
+	var fence codeFence
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inCodeBlock = !inCodeBlock
-			continue
-		}
-		if inCodeBlock {
+		if skipCodeFence(line, &fence) {
 			continue
 		}
 
@@ -113,18 +145,14 @@ func ExtractHeadings(markdown string) []model.HeadingItem {
 func ExcerptPreview(markdown string, maxLines int, maxLen int) string {
 	lines := strings.Split(markdown, "\n")
 	var cleanParts []string
-	inCodeBlock := false
+	var fence codeFence
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inCodeBlock = !inCodeBlock
-			continue
-		}
-		if inCodeBlock {
+		if skipCodeFence(line, &fence) {
 			continue
 		}
 

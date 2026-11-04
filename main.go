@@ -14,15 +14,18 @@ import (
 )
 
 func resolveDataPath() string {
-	// 1. First check ./data/xiangying-notes.sqlite
 	localData := filepath.Join(".", "data", "xiangying-notes.sqlite")
-	if _, err := os.Stat(filepath.Dir(localData)); err == nil {
+	configDir, err := os.UserConfigDir()
+	return chooseDataPath(localData, configDir, err)
+}
+
+func chooseDataPath(localData, configDir string, configErr error) string {
+	// Keep using the portable database only when the database file already exists.
+	if info, err := os.Stat(localData); err == nil && !info.IsDir() {
 		return localData
 	}
 
-	// 2. Otherwise use UserConfigDir or fallback to local ./data
-	configDir, err := os.UserConfigDir()
-	if err == nil {
+	if configErr == nil {
 		appDir := filepath.Join(configDir, "Xiangying")
 		_ = os.MkdirAll(appDir, 0755)
 		return filepath.Join(appDir, "xiangying-notes.sqlite")
@@ -51,6 +54,11 @@ func main() {
 			TitleBarStyle:  mygo.TitleBarHidden,
 			TitleBarHeight: 46,
 			Content:        ui.View(app.View),
+		})
+		win.OnClose(func(e *mygo.CloseEvent) {
+			if !app.SaveCurrentNote() {
+				e.PreventDefault()
+			}
 		})
 		if len(assets.IconPNG) > 0 {
 			win.SetIcon(assets.IconPNG)

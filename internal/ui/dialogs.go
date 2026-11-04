@@ -112,6 +112,9 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 				if submit {
 					name := strings.TrimSpace(a.dialogNotebookName)
 					if name != "" {
+						if !a.saveCurrentNote() {
+							return
+						}
 						notebook, err := a.store.CreateNotebook(name, a.dialogNotebookColor, "folder")
 						if err == nil && notebook != nil {
 							a.dialogNewNotebook = false
@@ -176,7 +179,10 @@ func (a *App) renderEmptyTrashDialog(c *ui.Context, p Palette) {
 					ui.Text(c, "确认清空").FontSize(12).Bold().TextColor(p.OnAccent)
 				})
 				if confirm.Clicked() {
-					_ = a.store.EmptyTrash()
+					if err := a.store.EmptyTrash(); err != nil {
+						a.showToast("清空回收站失败")
+						return
+					}
 					a.selectedNoteID = ""
 					a.dialogConfirmEmptyTrash = false
 					a.refreshData()

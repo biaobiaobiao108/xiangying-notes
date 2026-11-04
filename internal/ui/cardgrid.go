@@ -299,8 +299,9 @@ func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidt
 	card.Shadow(0, 2+2*lift, shadowBlur, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, 0.28+0.10*lift, 0.055+0.04*lift)))
 
 	if card.Clicked() {
-		a.selectNote(note.ID)
-		a.cardViewOpen = true
+		if a.selectNote(note.ID) {
+			a.cardViewOpen = true
+		}
 	}
 
 	eyebrowWidth := card.AnimateTo("eyebrow", conditional(hovered, float32(38), float32(20)), ui.Snappy)

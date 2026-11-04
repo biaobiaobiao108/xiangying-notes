@@ -609,6 +609,72 @@ func TestTitleIsDocumentContent(t *testing.T) {
 	}
 }
 
+func TestBodyHeadingMatchingTitleSurvivesReload(t *testing.T) {
+	store, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app := NewApp(store)
+	note, err := store.CreateNote(app.notebooks[0].ID, "标题", "# 标题\n\n正文")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+	app.refreshData()
+	saved, err := store.GetNote(note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.ContentMarkdown != "# 标题\n\n正文" {
+		t.Fatalf("body changed after reload: %q", saved.ContentMarkdown)
+	}
+}
+
+func TestFailedSaveRetainsEditsAndRetries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.sqlite")
+	store, err := db.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp(store)
+	id := app.selectedNoteID
+	oldTitle := app.lastSavedTitle
+	attrs := app.currentDoc.TypingAttributes()
+	app.currentDoc.Edit(func(e *richtext.Edit) {
+		e.ReplaceString(0, len([]rune(oldTitle)), "修改后的标题", attrs)
+	})
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if app.saveCurrentNote() || !app.saveFailed {
+		t.Fatal("failed write reported success")
+	}
+	if app.lastSavedTitle != oldTitle {
+		t.Fatal("failed write changed saved state")
+	}
+	if app.selectNote("") || app.selectedNoteID != id {
+		t.Fatal("selection changed despite failed save")
+	}
+	store, err = db.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app.store = store
+	if !app.SaveCurrentNote() || app.saveFailed {
+		t.Fatal("retry failed")
+	}
+	saved, err := store.GetNote(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Title != "修改后的标题" {
+		t.Fatalf("saved title = %q", saved.Title)
+	}
+}
+
 func TestWheelScrollingAnimates(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))

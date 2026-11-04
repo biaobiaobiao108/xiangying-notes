@@ -167,7 +167,13 @@ func (s *Store) CreateNote(notebookID, title, content string) (*model.Note, erro
 	now := time.Now()
 	id := NewUUID()
 
-	_, err := s.db.Exec(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("begin create note: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
 		"INSERT INTO notes (id, notebook_id, title, content_markdown, is_favorite, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)",
 		id, notebookID, title, content, now.Unix(), now.Unix(),
 	)
@@ -175,14 +181,20 @@ func (s *Store) CreateNote(notebookID, title, content string) (*model.Note, erro
 		return nil, fmt.Errorf("create note: %w", err)
 	}
 
-	// Sync tags
+	// Sync tags in the same transaction so a failed index update cannot leave
+	// a note whose tags disagree with its Markdown content.
 	tags := markdown.ExtractTags(content)
 	for _, tag := range tags {
-		_, _ = s.db.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag)
+		if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag); err != nil {
+			return nil, fmt.Errorf("create note tag: %w", err)
+		}
 	}
 
 	var notebookName string
-	_ = s.db.QueryRow("SELECT name FROM notebooks WHERE id = ?", notebookID).Scan(&notebookName)
+	_ = tx.QueryRow("SELECT name FROM notebooks WHERE id = ?", notebookID).Scan(&notebookName)
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit create note: %w", err)
+	}
 
 	return &model.Note{
 		ID:              id,
@@ -204,21 +216,40 @@ func (s *Store) UpdateNote(id, title, content string) error {
 	defer s.mu.Unlock()
 
 	now := time.Now().Unix()
-	_, err := s.db.Exec(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin update note: %w", err)
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(
 		"UPDATE notes SET title = ?, content_markdown = ?, updated_at = ? WHERE id = ?",
 		title, content, now, id,
 	)
 	if err != nil {
 		return fmt.Errorf("update note: %w", err)
 	}
-
-	// Refresh tags
-	_, _ = s.db.Exec("DELETE FROM note_tags WHERE note_id = ?", id)
-	tags := markdown.ExtractTags(content)
-	for _, tag := range tags {
-		_, _ = s.db.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag)
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check updated note: %w", err)
+	}
+	if count == 0 {
+		return fmt.Errorf("update note %s: %w", id, sql.ErrNoRows)
 	}
 
+	// Refresh tags
+	if _, err := tx.Exec("DELETE FROM note_tags WHERE note_id = ?", id); err != nil {
+		return fmt.Errorf("delete note tags: %w", err)
+	}
+	tags := markdown.ExtractTags(content)
+	for _, tag := range tags {
+		if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag); err != nil {
+			return fmt.Errorf("insert note tag: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit update note: %w", err)
+	}
 	return nil
 }
 

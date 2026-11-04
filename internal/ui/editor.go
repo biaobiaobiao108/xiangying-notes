@@ -205,6 +205,10 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 
 				statusIcon := assets.IconCheck
 				statusTip := "已保存"
+				if a.saveFailed {
+					statusIcon = assets.IconClose
+					statusTip = "保存失败，请检查数据库后重试"
+				}
 				if a.view == model.ViewTrash {
 					statusIcon = assets.IconLock
 					statusTip = "只读"
@@ -225,7 +229,11 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 						starTint = p.Star
 					}
 					if a.tintedIconButton(c, p, "favorite-note", starIcon, "收藏", starTint).Clicked() {
-						favorite, _ := a.store.ToggleFavorite(currentNote.ID)
+						favorite, err := a.store.ToggleFavorite(currentNote.ID)
+						if err != nil {
+							a.showToast("更新收藏失败")
+							return
+						}
 						a.refreshData()
 						a.showToast(conditional(favorite, "已加入收藏", "已取消收藏"))
 					}

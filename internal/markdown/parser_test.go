@@ -52,6 +52,27 @@ More text
 	}
 }
 
+func TestMismatchedFenceDoesNotEndCodeBlock(t *testing.T) {
+	input := "````go\n~~~\n# hidden-heading\n#hidden-tag\n```\n# still-hidden\n````\n# visible-heading\n#visible-tag"
+
+	if tags := ExtractTags(input); len(tags) != 1 || tags[0] != "visible" {
+		t.Fatalf("ExtractTags() = %v, want only visible", tags)
+	}
+	if headings := ExtractHeadings(input); len(headings) != 1 || headings[0].Text != "visible-heading" {
+		t.Fatalf("ExtractHeadings() = %v, want only visible-heading", headings)
+	}
+	if preview := ExcerptPreview(input, 3, 200); preview != "visible-heading #visible-tag" {
+		t.Fatalf("ExcerptPreview() = %q, want visible content only", preview)
+	}
+}
+
+func TestFenceMustCloseWithMatchingMarkerAndLength(t *testing.T) {
+	input := "~~~~lang\n```\n# hidden\n~~~\n# still-hidden\n~~~~\n#shown"
+	if tags := ExtractTags(input); len(tags) != 1 || tags[0] != "shown" {
+		t.Fatalf("ExtractTags() = %v, want only shown", tags)
+	}
+}
+
 func TestRelativeDate(t *testing.T) {
 	now := time.Now()
 	if d := RelativeDate(now); d != "刚刚" {

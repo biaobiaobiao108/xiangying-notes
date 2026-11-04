@@ -45,6 +45,7 @@ type App struct {
 	currentDoc       *richtext.Document
 	lastSavedTitle   string
 	lastSavedContent string
+	saveFailed       bool
 
 	// Panels and dialogs.
 	showOutline             bool
@@ -86,7 +87,9 @@ func NewApp(store *db.Store) *App {
 }
 
 func (a *App) refreshData() {
-	a.saveCurrentNote()
+	if !a.saveCurrentNote() {
+		return
+	}
 	a.cardHeights = nil
 	a.cardEstimates = nil
 	a.noteListHeights = nil
@@ -126,13 +129,16 @@ func (a *App) flushToast(c *ui.Context) {
 	a.pendingToast = ""
 }
 
-func (a *App) selectNote(id string) {
+func (a *App) selectNote(id string) bool {
 	if id == a.selectedNoteID {
-		return
+		return true
 	}
-	a.saveCurrentNote()
+	if !a.saveCurrentNote() {
+		return false
+	}
 	a.selectedNoteID = id
 	a.loadCurrentDocument()
+	return true
 }
 
 func (a *App) loadCurrentDocument() {
@@ -162,9 +168,12 @@ func (a *App) loadCurrentDocument() {
 	a.currentDoc.SetSelection(bodyStart, bodyStart)
 }
 
-func (a *App) saveCurrentNote() {
+// SaveCurrentNote saves pending edits, including when the window is closing.
+func (a *App) SaveCurrentNote() bool { return a.saveCurrentNote() }
+
+func (a *App) saveCurrentNote() bool {
 	if a.selectedNoteID == "" || a.currentDoc == nil {
-		return
+		return true
 	}
 	text := a.currentDoc.Text()
 	currentTitle, bodyStart := titleAndBodyStart(text)
@@ -172,10 +181,16 @@ func (a *App) saveCurrentNote() {
 	currentMD := strings.Trim(text.Slice(bodyStart, text.Len()).Markdown(), "\r\n")
 	a.currentNoteTitle = currentTitle
 	if currentMD == a.lastSavedContent && currentTitle == a.lastSavedTitle {
-		return
+		a.saveFailed = false
+		return true
 	}
 
-	_ = a.store.UpdateNote(a.selectedNoteID, currentTitle, currentMD)
+	if err := a.store.UpdateNote(a.selectedNoteID, currentTitle, currentMD); err != nil {
+		a.saveFailed = true
+		a.showToast("保存失败，请检查数据库后重试")
+		return false
+	}
+	a.saveFailed = false
 	a.lastSavedContent = currentMD
 	a.lastSavedTitle = currentTitle
 
@@ -199,6 +214,7 @@ func (a *App) saveCurrentNote() {
 	if tagsChanged {
 		a.tags, _ = a.store.ListAllTags()
 	}
+	return true
 }
 
 func paragraphText(paragraph richtext.Paragraph) string {
@@ -242,14 +258,7 @@ func noteText(title, content string) richtext.Text {
 		Style: richtext.ParagraphStyle{Heading: 1},
 		Runs:  []richtext.Run{{Text: title}},
 	}}
-	first := true
 	for _, paragraph := range richtext.ParseMarkdown(content).Paragraphs() {
-		if first {
-			first = false
-			if paragraph.Style.Heading == 1 && strings.TrimSpace(paragraphText(paragraph)) == title {
-				continue
-			}
-		}
 		paragraphs = append(paragraphs, paragraph)
 	}
 	for len(paragraphs) > 1 && paragraphEmpty(paragraphs[len(paragraphs)-1]) {
@@ -269,6 +278,9 @@ func paragraphEmpty(paragraph richtext.Paragraph) bool {
 }
 
 func (a *App) setView(view model.ViewType) {
+	if !a.saveCurrentNote() {
+		return
+	}
 	a.closeOutline()
 	a.view = view
 	a.cardViewOpen = false
@@ -302,6 +314,9 @@ func (a *App) resetOutlineNavigation() {
 }
 
 func (a *App) openNotebook(id string) {
+	if !a.saveCurrentNote() {
+		return
+	}
 	a.closeOutline()
 	a.view = model.ViewNotebook
 	a.cardViewOpen = false
@@ -312,6 +327,9 @@ func (a *App) openNotebook(id string) {
 }
 
 func (a *App) openTag(tag string) {
+	if !a.saveCurrentNote() {
+		return
+	}
 	a.closeOutline()
 	a.view = model.ViewTag
 	a.cardViewOpen = false
@@ -479,6 +497,9 @@ func (a *App) renderContent(c *ui.Context, p Palette) {
 }
 
 func (a *App) actionNewNote() {
+	if !a.saveCurrentNote() {
+		return
+	}
 	notebookID := a.selectedNotebookID
 	if notebookID == "" && len(a.notebooks) > 0 {
 		for _, notebook := range a.notebooks {
@@ -524,7 +545,13 @@ func (a *App) moveCurrentToTrash() {
 	if a.selectedNoteID == "" {
 		return
 	}
-	_ = a.store.MoveToTrash(a.selectedNoteID)
+	if !a.saveCurrentNote() {
+		return
+	}
+	if err := a.store.MoveToTrash(a.selectedNoteID); err != nil {
+		a.showToast("移至回收站失败")
+		return
+	}
 	a.selectedNoteID = ""
 	a.refreshData()
 	a.showToast("已移至回收站")
@@ -534,7 +561,10 @@ func (a *App) restoreCurrentNote() {
 	if a.selectedNoteID == "" {
 		return
 	}
-	_ = a.store.RestoreFromTrash(a.selectedNoteID)
+	if err := a.store.RestoreFromTrash(a.selectedNoteID); err != nil {
+		a.showToast("恢复笔记失败")
+		return
+	}
 	a.selectedNoteID = ""
 	a.refreshData()
 	a.showToast("笔记已恢复")
