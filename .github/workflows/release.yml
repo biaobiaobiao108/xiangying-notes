@@ -52,7 +52,14 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          makensis "/DAPP_VERSION=$env:APP_VERSION" scripts/installer-windows.nsi
+          $makensis = Join-Path ${env:ProgramFiles(x86)} "NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            throw "NSIS compiler not found: $makensis"
+          }
+          & $makensis "/DAPP_VERSION=$env:APP_VERSION" scripts/installer-windows.nsi
+          if ($LASTEXITCODE -ne 0) {
+            throw "makensis failed with exit code $LASTEXITCODE"
+          }
 
       - name: Build portable package
         shell: pwsh
