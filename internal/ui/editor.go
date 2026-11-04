@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/richtext"
 	"github.com/egoist/mygo/transfer"
@@ -16,7 +17,14 @@ import (
 func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 	rightPad := windowControlInset(c)
 	panelWidth := a.editorPanelWidth(c)
-	textInset := editorTextInset(panelWidth, a.focusMode)
+	floatingOutline := a.showOutline && (a.cardViewOpen || a.focusMode)
+	leftPad := float32(6)
+	extraGutter := float32(0)
+	if floatingOutline {
+		leftPad += outlineWidth + outlineGutter
+		extraGutter = outlineWidth + outlineGutter
+	}
+	textInset := editorTextInset(panelWidth-extraGutter, a.focusMode)
 
 	var currentNote *model.Note
 	for i := range a.notes {
@@ -39,7 +47,7 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 				ui.Column(c).
 					FillWidth().
 					FillHeight().
-					Padding(18, 6, 10, 6).
+					Padding(18, 6, 10, leftPad).
 					Children(func() {
 						ui.Box(c).Grow(1).FillWidth().Clip().Background(p.Editor).Children(func() {
 							editor := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
@@ -73,8 +81,8 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 				a.renderEditorFloatingMeta(c, p)
 			})
 
-			if a.showOutline {
-				a.renderOutlineDrawer(c, p)
+			if floatingOutline {
+				a.renderFloatingOutline(c, p)
 			}
 		})
 	})
@@ -258,9 +266,6 @@ func (a *App) editorPanelWidth(c *ui.Context) float32 {
 			width -= a.listWidth
 		}
 	}
-	if a.showOutline {
-		width -= 204
-	}
 	return max(width, 320)
 }
 
@@ -335,7 +340,7 @@ func (a *App) renderEditorFloatingMeta(c *ui.Context, p Palette) {
 		}
 		outline.Background(outline.AnimateColor("fill", fill, colorAnimation))
 		if outline.Clicked() {
-			a.showOutline = !a.showOutline
+			a.toggleOutline()
 		}
 	})
 }
@@ -400,113 +405,182 @@ func (a *App) renderEmptyWorkspace(c *ui.Context, p Palette) {
 	})
 }
 
-func (a *App) renderOutlineDrawer(c *ui.Context, p Palette) {
-	drawer := ui.Column(c).
-		Key("outline-drawer").
-		Width(204).
-		Shrink(0).
-		FillHeight().
-		Background(p.Sidebar).
-		Padding(15, 14).
-		Gap(10).
-		BorderWidth(1, 0, 0, 0).
-		BorderColor(p.BorderSoft).
-		Clip()
+const (
+	outlineWidth    = float32(216)
+	outlineGutter   = float32(24)
+	outlineRowSize  = float32(32)
+	outlineRowSpace = float32(1)
+)
 
-	animation := ui.Snappy
-	drawer.Transition(ui.ElementTransition{
-		Size:      true,
-		Colors:    true,
-		Animation: &animation,
-		Enter:     &ui.Motion{Collapse: true, Opacity: 0},
-		Exit:      &ui.Motion{Collapse: true, Opacity: 0},
+// renderOutlinePanel fills the middle column in place of the note list, as
+// the original app does: opening the outline does not squeeze the editor.
+func (a *App) renderOutlinePanel(c *ui.Context, p Palette) {
+	headings := documentOutline(a.currentDoc)
+	panel := ui.Column(c).
+		Key("outline-panel").
+		FillHeight().
+		Background(p.List)
+	panel.Transition(ui.ElementTransition{
+		Duration: 160 * time.Millisecond,
+		Ease:     ui.EaseOut,
+		Colors:   true,
+		Enter:    &ui.Motion{X: -4, Opacity: 0},
+		Exit:     &ui.Motion{Opacity: 0},
 	})
 
-	drawer.Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "大纲").FontSize(10.5).Bold().TextColor(p.Muted).Grow(1)
-			close := ui.Button(c, "").
-				Key("close-outline").
-				Width(20).
-				Height(20).
-				Padding(0).
-				Radius(4).
-				Border(0, ui.Color{})
-			close.Children(func() {
-				ui.Icon(c, assets.IconClose).FontSize(11).TextColor(p.Muted)
+	panel.Children(func() {
+		ui.Row(c).
+			Height(topBarHeight(c)).
+			Padding(0, 14).
+			AlignItems(ui.Center).
+			BorderWidth(0, 0, 1, 0).
+			BorderColor(p.BorderSoft).
+			DragWindow().
+			Children(func() {
+				ui.Column(c).Gap(1).Grow(1).Children(func() {
+					ui.Text(c, "笔记大纲").FontSize(14).Bold().TextColor(p.Ink).SingleLine()
+					subtitle := "当前笔记暂无标题"
+					if len(headings) > 0 {
+						subtitle = fmt.Sprintf("%d 个标题", len(headings))
+					}
+					ui.Text(c, subtitle).FontSize(10).TextColor(p.SoftMuted).SingleLine()
+				})
+				if a.iconButton(c, p, "close-outline", assets.IconArrowLeft, "返回笔记列表").Clicked() {
+					a.closeOutline()
+				}
 			})
-			close.Background(close.AnimateColor("fill", conditional(close.Hovered(), p.SurfaceSelect, ui.Color{}), colorAnimation))
-			if close.Clicked() {
-				a.showOutline = false
+
+		if a.currentDoc == nil || len(headings) == 0 {
+			a.renderOutlineEmpty(c, p)
+			return
+		}
+		a.renderOutlineList(c, p, headings, false, 0)
+	})
+}
+
+// renderFloatingOutline keeps the outline beside the document when the note
+// itself is full width, as in card editing and focus mode.
+func (a *App) renderFloatingOutline(c *ui.Context, p Palette) {
+	_, windowHeight := c.Size()
+	height := windowHeight - topBarHeight(c) - 16 - 96
+	if height < 160 {
+		height = 160
+	}
+	headings := documentOutline(a.currentDoc)
+	panel := ui.Column(c).
+		Key("floating-outline").
+		Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).
+		Left(18).
+		Top(16).
+		Width(outlineWidth).
+		Height(height).
+		Clip()
+	panel.Transition(ui.ElementTransition{
+		Duration: 180 * time.Millisecond,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{X: -6, Opacity: 0},
+		Exit:     &ui.Motion{Opacity: 0},
+	})
+
+	panel.Children(func() {
+		if a.currentDoc == nil || len(headings) == 0 {
+			a.renderOutlineEmpty(c, p)
+			return
+		}
+		a.renderOutlineList(c, p, headings, true, height)
+	})
+}
+
+func (a *App) renderOutlineEmpty(c *ui.Context, p Palette) {
+	ui.Column(c).Grow(1).FillWidth().Center().Gap(7).Children(func() {
+		ui.Icon(c, assets.IconOutline).FontSize(18).TextColor(p.SoftMuted)
+		ui.Text(c, "还没有标题").FontSize(12).TextColor(p.Muted).SingleLine()
+		ui.Text(c, "用 # 标题建立大纲").FontSize(10.5).TextColor(p.SoftMuted).SingleLine()
+	})
+}
+
+func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntry, floating bool, viewport float32) {
+	active := a.outlineActive(headings)
+	topPad := float32(14)
+	if floating && viewport > 0 {
+		contentHeight := float32(len(headings))*outlineRowSize + float32(len(headings)-1)*outlineRowSpace
+		if contentHeight+24 < viewport {
+			topPad = (viewport - contentHeight) / 2
+		} else {
+			topPad = 12
+		}
+	}
+	follow := active >= 0 && (a.outlineActiveNote != a.selectedNoteID || a.outlineActiveIndex != active)
+	if follow {
+		a.outlineActiveNote = a.selectedNoteID
+		a.outlineActiveIndex = active
+	}
+
+	bg := p.List
+	if floating {
+		bg = p.Editor
+	}
+	ui.Box(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Fill().TrackScroll(&a.outlineScroll).Children(func() {
+			sidePad := float32(6)
+			if floating {
+				sidePad = 0
 			}
-		})
-
-		if a.currentDoc == nil {
-			return
-		}
-
-		headings := documentOutline(a.currentDoc)
-		if len(headings) == 0 {
-			ui.Text(c, "还没有标题").FontSize(10.5).TextColor(p.SoftMuted)
-			return
-		}
-		active := activeOutlineIndex(headings, a.currentDoc)
-
-		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).FillWidth().Gap(1).Children(func() {
+			ui.Column(c).FillWidth().Padding(topPad, sidePad, 24, sidePad).Gap(outlineRowSpace).Children(func() {
 				for i, heading := range headings {
-					indent := float32(min(heading.Level-1, 3) * 10)
-					row := ui.Button(c, "").
+					indent := float32(min(heading.Level-1, 5) * 10)
+					row := ui.ButtonBase(c).
 						Key(fmt.Sprintf("outline-%d-%d", i, heading.Start)).
 						Label("跳转到 "+heading.Text).
-						Width(176-indent).
-						Height(27).
-						Padding(0, 7).
-						Margin(0, 0, 1, indent).
-						Radius(5).
+						WidthPercent(100).
+						Height(outlineRowSize).
+						Padding(0, 8, 0, 8+indent).
 						Border(0, ui.Color{}).
-						Gap(6).
+						Background(ui.Color{}).
 						AlignItems(ui.Center).
 						Justify(ui.Start).
 						Cursor(ui.CursorPointer)
 
-					hovered := row.Hovered()
-					fill := ui.Color{}
 					ink := p.QuietInk
 					weight := 400
-					size := float32(10.5)
 					switch heading.Level {
 					case 1:
-						ink, weight, size = p.InkSoft, 600, 11.5
+						weight = 600
 					case 2:
-						ink, weight = p.QuietInk, 500
-					}
-					if hovered {
-						fill = p.SurfaceHover
+						weight = 500
 					}
 					if i == active {
-						fill = p.SurfaceHover
 						ink = p.Ink
 						weight = 600
+					} else if row.Hovered() {
+						ink = p.Accent
 					}
-					row.Background(row.AnimateColor("fill", fill, colorAnimation))
+
+					if follow && i == active {
+						row.ScrollIntoView()
+					}
 					if row.Clicked() {
 						a.currentDoc.SetSelection(heading.Start, heading.Start)
+						a.currentDoc.ScrollToParagraph(heading.Index, 24, true, c.Now())
+						a.outlinePinned = i
+						a.outlinePinnedUntil = time.Now().Add(300 * time.Millisecond)
 						a.focusEditor = true
 					}
 
 					row.Children(func() {
-						marker := ui.Color{}
-						if i == active {
-							marker = p.Accent
+						size := float32(13.5)
+						if floating {
+							size = 12.8
 						}
-						ui.Box(c).Width(2).Height(12).Radius(1).Background(marker)
 						text := ui.Text(c, heading.Text).
 							FontSize(size).
 							FontWeight(weight).
 							TextColor(ink).
 							Grow(1).
-							SingleLine()
+							Shrink(1).
+							MinWidth(0).
+							SingleLine().
+							Ellipsis("…")
 						if weight >= 600 {
 							text.Bold()
 						}
@@ -514,13 +588,40 @@ func (a *App) renderOutlineDrawer(c *ui.Context, p Palette) {
 				}
 			})
 		})
+
+		topFade := ui.Box(c).
+			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).
+			WidthPercent(100).
+			Height(20).
+			Gradient(bg, bg.Alpha(0), 180).
+			PassThrough()
+		if a.outlineScroll.Y <= 1 {
+			topFade.Opacity(0)
+		}
+		bottomFade := ui.Box(c).
+			Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).
+			WidthPercent(100).
+			Height(24).
+			Gradient(bg.Alpha(0), bg, 180).
+			PassThrough()
+		if a.outlineScroll.MaxY-a.outlineScroll.Y <= 1 {
+			bottomFade.Opacity(0)
+		}
 	})
+}
+
+func (a *App) outlineActive(headings []outlineEntry) int {
+	if a.outlinePinned >= 0 && a.outlinePinned < len(headings) && time.Now().Before(a.outlinePinnedUntil) {
+		return a.outlinePinned
+	}
+	return activeOutlineIndex(headings, a.currentDoc)
 }
 
 type outlineEntry struct {
 	Level int
 	Text  string
 	Start int
+	Index int
 }
 
 func documentOutline(doc *richtext.Document) []outlineEntry {
@@ -529,7 +630,10 @@ func documentOutline(doc *richtext.Document) []outlineEntry {
 	}
 	var entries []outlineEntry
 	first := true
+	index := 0
 	for start, paragraph := range doc.Text().Paragraphs() {
+		paragraphIndex := index
+		index++
 		if first {
 			first = false
 			continue
@@ -549,6 +653,7 @@ func documentOutline(doc *richtext.Document) []outlineEntry {
 			Level: paragraph.Style.Heading,
 			Text:  title,
 			Start: start,
+			Index: paragraphIndex,
 		})
 	}
 	return entries
@@ -558,18 +663,46 @@ func activeOutlineIndex(entries []outlineEntry, doc *richtext.Document) int {
 	if len(entries) == 0 || doc == nil {
 		return -1
 	}
-	start := -1
-	if boxes := doc.VisibleParagraphs(); len(boxes) > 0 {
-		start = boxes[0].Start
-	} else {
-		start, _ = doc.Selection()
+	boxes := doc.VisibleParagraphs()
+	if len(boxes) == 0 {
+		start, _ := doc.Selection()
+		active := -1
+		for i, entry := range entries {
+			if entry.Start > start {
+				break
+			}
+			active = i
+		}
+		return active
 	}
+
+	// A heading counts as current once it reaches the reading line near the
+	// top, even while the paragraph above it is still partly visible.
+	const activationLine = float32(32)
+	tops := make(map[int]float32, len(boxes))
+	for _, box := range boxes {
+		tops[box.Start] = box.Top
+	}
+	first := boxes[0].Start
 	active := -1
 	for i, entry := range entries {
-		if entry.Start > start {
+		if entry.Start > first {
 			break
 		}
 		active = i
+	}
+	for i, entry := range entries {
+		if entry.Start < first {
+			continue
+		}
+		top, ok := tops[entry.Start]
+		if !ok || top > activationLine {
+			break
+		}
+		active = i
+	}
+	if active < 0 {
+		active = 0
 	}
 	return active
 }

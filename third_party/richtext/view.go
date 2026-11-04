@@ -109,6 +109,7 @@ type view struct {
 	scrollVel    float64
 	scrollLast   time.Time
 	scrollSmooth bool
+	jump         *jumpScroll
 	anchor       int
 	anchorOff    float64
 	reveal       bool
@@ -760,10 +761,33 @@ func (v *view) setScroll(y float64) {
 
 const wheelScrollOmega = 24.0
 
+// jumpScroll is a scroll to a paragraph on its way: from where the editor
+// showed to the paragraph, eased out over a short time.
+type jumpScroll struct {
+	from, to float64
+	started  time.Time
+	duration time.Duration
+}
+
+// startJumpScroll heads for target as an outline jump, or moves there at
+// once when smooth is unset.
+func (v *view) startJumpScroll(target float64, smooth bool, now time.Time) {
+	v.scrollSmooth = false
+	v.scrollVel = 0
+	v.jump = nil
+	if !smooth || math.Abs(target-v.scroll) < 0.5 {
+		v.setScroll(target)
+		return
+	}
+	duration := time.Duration(math.Min(240, math.Max(160, math.Abs(target-v.scroll)*0.08+140))) * time.Millisecond
+	v.jump = &jumpScroll{from: v.scroll, to: target, started: now, duration: duration}
+}
+
 // startWheelScroll sends the next wheel notch to a target near the one the
 // editor already has, so notches that come quickly add up instead of
 // restarting the motion.
 func (v *view) startWheelScroll(dy float64, now time.Time) {
+	v.jump = nil
 	base := v.scroll
 	if v.scrollSmooth {
 		base = v.scrollTarget
@@ -781,6 +805,18 @@ func (v *view) startWheelScroll(dy float64, now time.Time) {
 // motion or makes the text tremble. It reports whether more frames are
 // needed.
 func (v *view) advanceScroll(now time.Time) bool {
+	if j := v.jump; j != nil {
+		progress := float64(now.Sub(j.started)) / float64(j.duration)
+		if progress >= 1 {
+			v.jump = nil
+			v.setScroll(j.to)
+			return false
+		}
+		progress = max(0, progress)
+		eased := 1 - math.Pow(1-progress, 4)
+		v.setScroll(max(0, min(j.from+(j.to-j.from)*eased, v.maxScroll())))
+		return true
+	}
 	if !v.scrollSmooth {
 		return false
 	}
@@ -939,6 +975,32 @@ func (d *Document) ScrollState() ScrollState {
 		Max:      float32(v.maxScroll()),
 		Viewport: v.viewH,
 	}
+}
+
+// ScrollToParagraph scrolls the editor so the paragraph's first line sits
+// inset DIPs below the top, or as near as the end of the text allows. The
+// move is eased over a short, distance-dependent time when smooth is set.
+// Call it on the main thread, as the view builds.
+func (d *Document) ScrollToParagraph(index int, inset float32, smooth bool, now time.Time) {
+	d.lock()
+	v := d.shownIn.Value()
+	d.mu.Unlock()
+	if v == nil || v.doc != d || v.width <= 0 || v.viewH <= 0 {
+		return
+	}
+	v.sync()
+	v.layout(v.width, v.viewH)
+	if len(v.paras) == 0 {
+		return
+	}
+	index = max(0, min(index, len(v.paras)-1))
+	for p := 0; p <= index; p++ {
+		v.paraLayout(p)
+	}
+	_, lineTop := v.origin(index)
+	target := max(0, min(lineTop-float64(inset-v.padY), v.maxScroll()))
+	v.reveal = false
+	v.startJumpScroll(target, smooth, now)
 }
 
 // boxes appends the boxes of the paragraphs in view to out.

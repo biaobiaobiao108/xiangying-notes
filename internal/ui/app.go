@@ -48,6 +48,11 @@ type App struct {
 
 	// Panels and dialogs.
 	showOutline             bool
+	outlineScroll           ui.ScrollState
+	outlineActiveNote       string
+	outlineActiveIndex      int
+	outlinePinned           int
+	outlinePinnedUntil      time.Time
 	dialogNewNotebook       bool
 	dialogNotebookName      string
 	dialogNotebookColor     string
@@ -65,6 +70,8 @@ func NewApp(store *db.Store) *App {
 		dialogNotebookColor: "#2d5342",
 		sidebarWidth:        244,
 		listWidth:           300,
+		outlineActiveIndex:  -1,
+		outlinePinned:       -1,
 	}
 	app.refreshData()
 	return app
@@ -117,6 +124,12 @@ func (a *App) selectNote(id string) {
 }
 
 func (a *App) loadCurrentDocument() {
+	a.outlineActiveNote = ""
+	a.outlineActiveIndex = -1
+	a.outlinePinned = -1
+	a.outlinePinnedUntil = time.Time{}
+	a.outlineScroll.X = 0
+	a.outlineScroll.Y = 0
 	if a.selectedNoteID == "" {
 		a.currentDoc = nil
 		a.currentNoteTitle = ""
@@ -240,6 +253,7 @@ func paragraphEmpty(paragraph richtext.Paragraph) bool {
 }
 
 func (a *App) setView(view model.ViewType) {
+	a.closeOutline()
 	a.view = view
 	a.cardViewOpen = false
 	a.selectedNotebookID = ""
@@ -248,7 +262,31 @@ func (a *App) setView(view model.ViewType) {
 	a.refreshData()
 }
 
+func (a *App) toggleOutline() {
+	if a.showOutline {
+		a.closeOutline()
+		return
+	}
+	a.showOutline = true
+	a.resetOutlineNavigation()
+}
+
+func (a *App) closeOutline() {
+	a.showOutline = false
+	a.resetOutlineNavigation()
+}
+
+func (a *App) resetOutlineNavigation() {
+	a.outlineActiveNote = ""
+	a.outlineActiveIndex = -1
+	a.outlinePinned = -1
+	a.outlinePinnedUntil = time.Time{}
+	a.outlineScroll.X = 0
+	a.outlineScroll.Y = 0
+}
+
 func (a *App) openNotebook(id string) {
+	a.closeOutline()
 	a.view = model.ViewNotebook
 	a.cardViewOpen = false
 	a.selectedNotebookID = id
@@ -258,6 +296,7 @@ func (a *App) openNotebook(id string) {
 }
 
 func (a *App) openTag(tag string) {
+	a.closeOutline()
 	a.view = model.ViewTag
 	a.cardViewOpen = false
 	a.selectedTag = tag
@@ -308,6 +347,9 @@ func (a *App) currentViewTitle() string {
 func (a *App) handleShortcuts(c *ui.Context) {
 	if a.dialogNewNotebook || a.dialogConfirmEmptyTrash {
 		return
+	}
+	if a.showOutline && c.Shortcut(0, ui.KeyEscape) {
+		a.closeOutline()
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyN) {
 		a.actionNewNote()
@@ -408,7 +450,11 @@ func (a *App) renderContent(c *ui.Context, p Palette) {
 			a.renderCardGrid(c, p)
 		default:
 			ui.Split(c, &a.listWidth, func() {
-				a.renderNoteList(c, p)
+				if a.showOutline {
+					a.renderOutlinePanel(c, p)
+				} else {
+					a.renderNoteList(c, p)
+				}
 			}, func() {
 				a.renderWorkspace(c, p)
 			}).Fill()

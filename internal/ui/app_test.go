@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,6 +246,96 @@ func TestOutlineJumpsToHeading(t *testing.T) {
 	start, _ := app.currentDoc.Selection()
 	if start != entries[2].Start {
 		t.Fatalf("outline moved the caret to %d, want %d", start, entries[2].Start)
+	}
+}
+
+func TestOutlineJumpIsSmoothAndAlignsHeading(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	var body strings.Builder
+	for _, section := range []string{"准备", "收集", "整理", "写作", "校对", "发布"} {
+		body.WriteString("## " + section + "\n\n")
+		for i := 0; i < 8; i++ {
+			body.WriteString("这一段用于验证大纲跳转的平滑滚动和目标位置。正文需要足够长，让每个标题之间都有稳定的距离。\n\n")
+		}
+	}
+	note, err := store.CreateNote(app.notebooks[0].ID, "大纲动画测试", body.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+	app.showOutline = true
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(200 * time.Millisecond)
+	entries := documentOutline(app.currentDoc)
+	if len(entries) < 5 {
+		t.Fatalf("expected at least 5 headings, got %d", len(entries))
+	}
+	target := entries[4]
+	before := app.currentDoc.ScrollState().Offset
+	if err := tt.Click("跳转到 " + target.Text); err != nil {
+		t.Fatalf("failed to click outline entry: %v", err)
+	}
+	tt.Advance(70 * time.Millisecond)
+	mid := app.currentDoc.ScrollState().Offset
+	tt.Advance(500 * time.Millisecond)
+	end := app.currentDoc.ScrollState().Offset
+	if mid <= before || mid >= end {
+		t.Fatalf("outline jump should ease, before=%.1f middle=%.1f end=%.1f", before, mid, end)
+	}
+
+	found := false
+	for _, box := range app.currentDoc.VisibleParagraphs() {
+		if box.Start != target.Start {
+			continue
+		}
+		found = true
+		if math.Abs(float64(box.Top)-24) > 1 {
+			t.Fatalf("heading top = %.1f, want 24", box.Top)
+		}
+	}
+	if !found {
+		t.Fatal("target heading is not visible after jump")
+	}
+}
+
+func TestOutlinePanelReplacesNoteList(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	note, err := store.CreateNote(app.notebooks[0].ID, "大纲面板测试", "## 第一节\n\n正文\n\n## 第二节\n\n正文")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+	app.showOutline = true
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	if tt.HasText("最近更新") {
+		t.Fatal("the note list should be replaced by the outline panel")
+	}
+	if !tt.HasText("笔记大纲") || !tt.HasText("2 个标题") {
+		t.Fatal("outline panel header is missing")
+	}
+	if err := tt.Click("返回笔记列表"); err != nil {
+		t.Fatalf("failed to return to the note list: %v", err)
+	}
+	if app.showOutline {
+		t.Fatal("outline should close from its header")
 	}
 }
 
