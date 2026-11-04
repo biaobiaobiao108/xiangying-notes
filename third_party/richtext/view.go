@@ -918,6 +918,29 @@ func (d *Document) VisibleParagraphs() []ParagraphBox {
 	return boxes
 }
 
+// ScrollState describes where the editor is scrolled: Offset is the top of
+// the content in DIPs, Max the furthest it scrolls, and Viewport its height.
+// The app uses it to soften the content where it leaves the editor.
+type ScrollState struct {
+	Offset   float32
+	Max      float32
+	Viewport float32
+}
+
+func (d *Document) ScrollState() ScrollState {
+	d.lock()
+	v := d.shownIn.Value()
+	d.mu.Unlock()
+	if v == nil {
+		return ScrollState{}
+	}
+	return ScrollState{
+		Offset:   float32(v.scroll),
+		Max:      float32(v.maxScroll()),
+		Viewport: v.viewH,
+	}
+}
+
 // boxes appends the boxes of the paragraphs in view to out.
 func (v *view) boxes(out []ParagraphBox) []ParagraphBox {
 	for i := v.first; i <= v.last && i < len(v.paras); i++ {

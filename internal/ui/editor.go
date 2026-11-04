@@ -67,6 +67,7 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 								editor.Focus()
 								a.focusEditor = false
 							}
+							a.renderEditorEdgeFades(c, p)
 						})
 					})
 				a.renderEditorFloatingMeta(c, p)
@@ -280,47 +281,100 @@ func (a *App) renderEditorFloatingMeta(c *ui.Context, p Palette) {
 	}
 
 	_, chars := markdown.WordStats(a.currentDoc.Text().PlainText())
-	ui.Row(c).
-		Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).
-		Left(18).
-		Bottom(16).
-		Height(28).
-		Padding(0, 10).
-		Radius(7).
-		Background(p.SurfaceHover).
-		Border(1, p.BorderSoft).
-		Children(func() {
-			ui.Text(c, fmt.Sprintf("%d 字符", chars)).
-				FontSize(9.5).
-				TextColor(p.SoftMuted)
-		})
-
-	outline := ui.Button(c, "").
-		Key("outline-toggle").
+	dock := ui.Row(c).
 		Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).
-		Right(26).
-		Bottom(16).
-		Height(28).
-		Padding(0, 9).
-		Radius(7).
-		Border(1, p.BorderSoft).
-		Tooltip(conditional(a.showOutline, "隐藏大纲", "显示大纲"))
-	outline.Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-			ui.Icon(c, assets.IconOutline).FontSize(12).TextColor(conditional(a.showOutline, p.Accent, p.Muted))
-			ui.Text(c, "大纲").FontSize(9.5).TextColor(conditional(a.showOutline, p.Accent, p.Muted))
+		Right(22).
+		Bottom(14).
+		Height(30).
+		Padding(0, 4).
+		Gap(2).
+		Radius(8).
+		Background(p.Sidebar).
+		Border(1, p.BorderSoft)
+	dock.Shadow(0, 2, 12, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.20), float32(0.045))))
+
+	dock.Children(func() {
+		ui.Text(c, fmt.Sprintf("%s 字", groupDigits(chars))).
+			FontSize(9.5).
+			TextColor(p.Muted).
+			Padding(0, 6).
+			SingleLine()
+
+		ui.Box(c).Width(1).Height(11).Background(p.BorderSoft).Margin(0, 2)
+
+		outline := ui.Button(c, "").
+			Key("outline-toggle").
+			Height(24).
+			Padding(0, 7).
+			Radius(6).
+			Border(0, ui.Color{}).
+			Tooltip(conditional(a.showOutline, "隐藏大纲", "显示大纲"))
+		outline.Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+				ink := conditional(a.showOutline, p.Accent, p.Muted)
+				ui.Icon(c, assets.IconOutline).FontSize(12).TextColor(ink)
+				ui.Text(c, "大纲").FontSize(9.5).TextColor(ink)
+			})
 		})
+		fill := ui.Color{}
+		if a.showOutline {
+			fill = p.AccentSoft
+		} else if outline.Hovered() {
+			fill = p.SurfaceHover
+		}
+		outline.Background(outline.AnimateColor("fill", fill, colorAnimation))
+		if outline.Clicked() {
+			a.showOutline = !a.showOutline
+		}
 	})
-	fill := p.SurfaceHover
-	if a.showOutline {
-		fill = p.AccentSoft
-	} else if outline.Hovered() {
-		fill = p.SurfaceSelect
+}
+
+func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
+	if a.currentDoc == nil {
+		return
 	}
-	outline.Background(outline.AnimateColor("fill", fill, colorAnimation))
-	if outline.Clicked() {
-		a.showOutline = !a.showOutline
+	state := a.currentDoc.ScrollState()
+	if state.Max <= 0 {
+		return
 	}
+	top := min(max(state.Offset/26, 0), 1)
+	bottom := min(max((state.Max-state.Offset)/26, 0), 1)
+	if top > 0 {
+		ui.Box(c).
+			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).
+			WidthPercent(100).
+			Height(26).
+			Gradient(p.Editor, p.Editor.Alpha(0), 180).
+			Opacity(top).
+			PassThrough()
+	}
+	if bottom > 0 {
+		ui.Box(c).
+			Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).
+			WidthPercent(100).
+			Height(68).
+			Gradient(p.Editor.Alpha(0), p.Editor, 180).
+			Opacity(bottom).
+			PassThrough()
+	}
+}
+
+func groupDigits(n int) string {
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+	var out strings.Builder
+	first := len(s) % 3
+	if first == 0 {
+		first = 3
+	}
+	out.WriteString(s[:first])
+	for i := first; i < len(s); i += 3 {
+		out.WriteByte(',')
+		out.WriteString(s[i : i+3])
+	}
+	return out.String()
 }
 
 func (a *App) renderEmptyWorkspace(c *ui.Context, p Palette) {
