@@ -205,10 +205,10 @@ func (s *Store) seed() error {
 		},
 		{
 			title: "开始记录你的想法",
-			content: `欢迎来到象映笔记 这是你的第一个笔记。按下 Ctrl / 可以打开命令菜单，开始记录你的想法。
+			content: `欢迎来到象映笔记 这是你的第一篇笔记。Ctrl N 新建笔记，Ctrl F 搜索，Ctrl Shift F 进入专注写作。
 写下值得保留的东西
 用笔记本整理上下文
-随时生成一个 7 天有效的只读分享`,
+用 #标签 把相关的想法连在一起`,
 			notebookID: inboxNotebookID,
 			isFavorite: false,
 			offsetMins: 9,

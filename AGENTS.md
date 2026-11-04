@@ -9,7 +9,7 @@
 
 - **语言**: Go 1.27+
 - **GUI 框架**: [MyGo](https://github.com/egoist/mygo) (`github.com/egoist/mygo` 及 `github.com/egoist/mygo/ui`)
-- **富文本与 Markdown**: `github.com/egoist/mygo/ui/richtext`
+- **富文本与 Markdown**: `github.com/egoist/mygo/richtext`（`third_party/richtext` 本地封装，仅补充滚轮平滑）
 - **本地存储**: 纯 Go 嵌入式 SQLite (`modernc.org/sqlite`)，无需 CGO
 
 ## 代码目录结构
@@ -31,5 +31,9 @@ gofmt -w .
 go test -v ./...
 
 # 编译桌面可执行文件
-go build -o xiangying.exe .
+go build -ldflags "-H=windowsgui" -o xiangying.exe .
 ```
+
+## 提交规范
+
+- 每次改完代码后都进行一次中文提交，提交信息使用中文，不积压已完成改动。

@@ -14,13 +14,15 @@ Another tag: #设计.
 #notatag in code fence
 ` + "```" + `
 
-Final line with #golang again.`
+Final line with #golang again.
+\#escaped #周报 #项目`
 
 	tags := ExtractTags(input)
-	if len(tags) != 3 {
-		t.Fatalf("expected 3 tags, got %d: %v", len(tags), tags)
+	if len(tags) != 6 {
+		t.Fatalf("expected 6 tags, got %d: %v", len(tags), tags)
 	}
-	if tags[0] != "golang" || tags[1] != "xiangying" || tags[2] != "设计" {
+	if tags[0] != "golang" || tags[1] != "xiangying" || tags[2] != "设计" ||
+		tags[3] != "escaped" || tags[4] != "周报" || tags[5] != "项目" {
 		t.Errorf("unexpected tags: %v", tags)
 	}
 }
@@ -60,5 +62,30 @@ func TestRelativeDate(t *testing.T) {
 	}
 	if d := RelativeDate(now.Add(-2 * time.Hour)); d != "2 小时前" {
 		t.Errorf("expected 2 小时前, got %s", d)
+	}
+}
+
+func TestLooksLikeMarkdown(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{name: "heading", text: "# 标题\n正文", want: true},
+		{name: "bold", text: "这是 **重点** 内容", want: true},
+		{name: "list", text: "- 第一项\n- 第二项", want: true},
+		{name: "quote", text: "> 引用", want: true},
+		{name: "fence", text: "```go\nfmt.Println()\n```", want: true},
+		{name: "link", text: "[象映](https://example.com)", want: true},
+		{name: "plain", text: "今天天气不错。\n下午出去走走。", want: false},
+		{name: "number", text: "2026. 年终总结", want: false},
+		{name: "dash prose", text: "会议记录 - 讨论了预算", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := LooksLikeMarkdown(test.text); got != test.want {
+				t.Fatalf("LooksLikeMarkdown(%q) = %v, want %v", test.text, got, test.want)
+			}
+		})
 	}
 }

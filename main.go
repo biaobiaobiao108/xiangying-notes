@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"log"
 	"os"
 	"path/filepath"
@@ -9,12 +8,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"xiangying/assets"
 	"xiangying/internal/db"
 	uiApp "xiangying/internal/ui"
 )
-
-//go:embed assets/icon.png
-var appIconPNG []byte
 
 func resolveDataPath() string {
 	// 1. First check ./data/xiangying-notes.sqlite
@@ -55,8 +52,8 @@ func main() {
 			TitleBarHeight: 46,
 			Content:        ui.View(app.View),
 		})
-		if len(appIconPNG) > 0 {
-			win.SetIcon(appIconPNG)
+		if len(assets.IconPNG) > 0 {
+			win.SetIcon(assets.IconPNG)
 		}
 	})
 

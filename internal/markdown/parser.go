@@ -11,9 +11,43 @@ import (
 )
 
 var (
-	tagRegex     = regexp.MustCompile(`(?:\s|^)#([a-zA-Z0-9_\p{Han}]+)`)
-	headingRegex = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
+	tagRegex         = regexp.MustCompile(`(?:\s|^)\\?#([a-zA-Z0-9_\p{Han}]+)`)
+	headingRegex     = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
+	orderedListRegex = regexp.MustCompile(`^\d{1,3}[.)]\s+`)
 )
+
+// LooksLikeMarkdown reports whether text carries Markdown syntax, so a
+// plain-text paste can be rendered instead of inserted literally.
+func LooksLikeMarkdown(text string) bool {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "":
+			continue
+		case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
+			return true
+		case headingRegex.MatchString(line):
+			return true
+		case strings.HasPrefix(line, "> "):
+			return true
+		case strings.HasPrefix(line, "- "), strings.HasPrefix(line, "* "), strings.HasPrefix(line, "+ "):
+			return true
+		case orderedListRegex.MatchString(line):
+			return true
+		case strings.HasPrefix(line, "|") && strings.HasSuffix(line, "|"):
+			return true
+		case line == "---", line == "***", line == "___":
+			return true
+		}
+	}
+	for _, marker := range []string{"**", "__", "~~", "](", "<u>", "<s>", "<b>", "<i>"} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
 
 // ExtractTags finds all #tags outside fenced code blocks.
 func ExtractTags(markdown string) []string {
