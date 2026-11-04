@@ -5,9 +5,8 @@ import (
 	"unicode/utf8"
 )
 
-// searchCondition returns a predicate for note searches. The trigram index is
-// useful for substring queries of at least three Unicode characters; shorter
-// searches use LIKE because FTS5 trigram cannot match them.
+// searchCondition routes longer substring queries to the trigram FTS index and
+// shorter queries to the dedicated unigram/bigram index with overflow fallback.
 func searchCondition(search string) (string, []any) {
 	search = strings.TrimSpace(search)
 	if search == "" {
@@ -21,7 +20,5 @@ func searchCondition(search string) (string, []any) {
 		return `n.rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)`, []any{phrase}
 	}
 
-	search = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(search)
-	pattern := "%" + search + "%"
-	return `(n.title LIKE ? ESCAPE '\' OR n.content_markdown LIKE ? ESCAPE '\')`, []any{pattern, pattern}
+	return shortSearchCondition(search)
 }

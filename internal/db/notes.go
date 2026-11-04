@@ -346,6 +346,9 @@ func (s *Store) CreateNote(notebookID, title, content string) (*model.Note, erro
 			return nil, fmt.Errorf("create note tag: %w", err)
 		}
 	}
+	if err := syncShortSearchIndex(tx, id, title, content); err != nil {
+		return nil, fmt.Errorf("create note short-search index: %w", err)
+	}
 
 	var notebookName string
 	if err := tx.QueryRow("SELECT name FROM notebooks WHERE id = ?", notebookID).Scan(&notebookName); err != nil {
@@ -405,6 +408,9 @@ func (s *Store) UpdateNote(id, title, content string) error {
 		if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag); err != nil {
 			return fmt.Errorf("insert note tag: %w", err)
 		}
+	}
+	if err := syncShortSearchIndex(tx, id, title, content); err != nil {
+		return fmt.Errorf("update note short-search index: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit update note: %w", err)

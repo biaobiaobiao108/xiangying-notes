@@ -121,13 +121,13 @@ func TestOpenUpgradesVersionZeroDatabaseWithoutDroppingNotes(t *testing.T) {
 	}
 	_, err = legacy.Exec(`
 CREATE TABLE notebooks (
-	id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, color TEXT NOT NULL,
-	icon TEXT NOT NULL, is_system INTEGER NOT NULL, sort_order INTEGER NOT NULL,
+	id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, color TEXT NOT NULL DEFAULT '#365e4e',
+	icon TEXT NOT NULL DEFAULT 'folder', is_system INTEGER NOT NULL DEFAULT 0, sort_order INTEGER NOT NULL DEFAULT 0,
 	created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE TABLE notes (
-	id TEXT PRIMARY KEY, notebook_id TEXT NOT NULL REFERENCES notebooks(id),
-	title TEXT NOT NULL, content_markdown TEXT NOT NULL,
+	id TEXT PRIMARY KEY, notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE RESTRICT,
+	title TEXT NOT NULL DEFAULT '未命名笔记', content_markdown TEXT NOT NULL DEFAULT '',
 	is_favorite INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER,
 	created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
@@ -191,8 +191,8 @@ func TestSchemaVersionIsSetAndFutureVersionsAreRejected(t *testing.T) {
 	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 1 {
-		t.Fatalf("schema version = %d, want 1", version)
+	if version != 2 {
+		t.Fatalf("schema version = %d, want 2", version)
 	}
 	if _, err := store.db.Exec("PRAGMA user_version = 99"); err != nil {
 		t.Fatal(err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -38,7 +39,17 @@ func main() {
 	dbPath := resolveDataPath()
 	store, err := db.Open(dbPath)
 	if err != nil {
-		log.Fatalf("failed to open database at %s: %v", dbPath, err)
+		log.Printf("failed to open database at %s: %v", dbPath, err)
+		mygo.App.WhenReady(func() {
+			go func() {
+				mygo.Dialog.Error("无法打开笔记数据库", fmt.Sprintf("数据库位置：%s\n\n%v", dbPath, err))
+				mygo.App.Quit()
+			}()
+		})
+		if runErr := mygo.App.Run(); runErr != nil {
+			log.Printf("failed to show database error: %v", runErr)
+		}
+		return
 	}
 	defer store.Close()
 
