@@ -27,6 +27,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v") -replace "-.*$", ""
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+
       - name: Build application
         shell: pwsh
         run: |
@@ -36,18 +43,48 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           go build -trimpath -ldflags "-s -w -H=windowsgui" -o dist/xiangying.exe .
 
-      - name: Package application
+      - name: Install NSIS
         shell: pwsh
-        run: |
-          $archive = "xiangying-$env:GITHUB_REF_NAME-windows-amd64.zip"
-          Compress-Archive -Path dist/xiangying.exe -DestinationPath $archive
-          Get-Item $archive | Format-List Name, Length
+        run: choco install nsis --version=3.13 --yes --no-progress
 
-      - name: Upload artifact
+      - name: Build installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          makensis "/DAPP_VERSION=$env:APP_VERSION" scripts/installer-windows.nsi
+
+      - name: Build portable package
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $archive = "dist\xiangying-$env:APP_VERSION-windows-amd64.zip"
+          Compress-Archive -Path dist/xiangying.exe -DestinationPath $archive
+
+      - name: Verify packages
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $files = @(
+            "dist\xiangying-$env:APP_VERSION-windows-amd64-setup.exe",
+            "dist\xiangying-$env:APP_VERSION-windows-amd64.zip"
+          )
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) {
+              throw "Missing package: $file"
+            }
+          }
+          Get-Item $files | Format-List Name, Length
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiangying-${{ github.ref_name }}-windows-amd64
-          path: xiangying-${{ github.ref_name }}-windows-amd64.zip
+          path: |
+            dist/xiangying-${{ steps.version.outputs.version }}-windows-amd64-setup.exe
+            dist/xiangying-${{ steps.version.outputs.version }}-windows-amd64.zip
           if-no-files-found: error
 
   build-macos:
@@ -64,11 +101,19 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Determine version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          version="${version%%-*}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Build application bundle
         env:
           GOOS: darwin
           GOARCH: arm64
           CGO_ENABLED: "0"
+          APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
@@ -90,9 +135,6 @@ jobs:
 
           iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
-          VERSION="${GITHUB_REF_NAME#v}"
-          VERSION="${VERSION%%-*}"
-
           cat > "$APP/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -111,7 +153,7 @@ jobs:
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>CFBundleShortVersionString</key>
-            <string>${VERSION}</string>
+            <string>${APP_VERSION}</string>
             <key>CFBundleVersion</key>
             <string>${GITHUB_RUN_NUMBER}</string>
             <key>CFBundleInfoDictionaryVersion</key>
@@ -132,15 +174,27 @@ jobs:
 
           file "$APP/Contents/MacOS/Xiangying"
 
-          ARCHIVE="xiangying-${GITHUB_REF_NAME}-macos-arm64.zip"
+          ARCHIVE="xiangying-${APP_VERSION}-macos-arm64.zip"
           ditto -c -k --keepParent "$APP" "$ARCHIVE"
-          ls -lh "$ARCHIVE"
 
-      - name: Upload artifact
+          STAGE="dist/dmg"
+          mkdir -p "$STAGE"
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+
+          DMG="xiangying-${APP_VERSION}-macos-arm64.dmg"
+          hdiutil create -volname "象映笔记" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+          hdiutil verify "$DMG"
+
+          ls -lh "$ARCHIVE" "$DMG"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiangying-${{ github.ref_name }}-macos-arm64
-          path: xiangying-${{ github.ref_name }}-macos-arm64.zip
+          path: |
+            xiangying-${{ steps.version.outputs.version }}-macos-arm64.dmg
+            xiangying-${{ steps.version.outputs.version }}-macos-arm64.zip
           if-no-files-found: error
 
   release:
@@ -162,18 +216,35 @@ jobs:
       - name: Generate checksums and release notes
         run: |
           set -euo pipefail
+
+          version="${GITHUB_REF_NAME#v}"
+          version="${version%%-*}"
+
           cd release-assets
-          sha256sum *.zip > SHA256SUMS.txt
+          sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt
 
           cat > ../release-notes.md <<EOF
           ## 下载
 
-          - **Windows x64**：\`xiangying-${GITHUB_REF_NAME}-windows-amd64.zip\`，解压后直接运行 \`xiangying.exe\`，无需安装。
-          - **macOS Apple Silicon**：\`xiangying-${GITHUB_REF_NAME}-macos-arm64.zip\`，适用于 macOS 11 及以上版本。
+          - **Windows x64 安装程序**：\`xiangying-${version}-windows-amd64-setup.exe\`。按向导安装到当前用户目录，无需管理员权限。
+          - **Windows x64 便携版**：\`xiangying-${version}-windows-amd64.zip\`。解压后直接运行，无需安装。
+          - **macOS Apple Silicon 安装镜像**：\`xiangying-${version}-macos-arm64.dmg\`。打开后将「象映笔记」拖入「应用程序」。
+          - **macOS Apple Silicon 便携版**：\`xiangying-${version}-macos-arm64.zip\`。
 
-          ## macOS 说明
+          ## 系统要求
 
-          应用使用 ad-hoc 签名，尚未经过 Apple 公证。首次打开时如被系统拦截，请在 Finder 中右键点击应用并选择「打开」，或前往「系统设置 → 隐私与安全性」允许运行。
+          - Windows 10 及以上，x64。
+          - macOS 11 及以上，Apple Silicon（M 系列芯片）。
+
+          ## 安装说明
+
+          Windows 安装程序会安装到当前用户目录，并创建开始菜单快捷方式；桌面快捷方式可在安装时选择。卸载程序不会删除本地笔记数据。
+
+          macOS 安装镜像中已将应用与「应用程序」文件夹放在一起，拖动应用即可完成安装。
+
+          ## 签名说明
+
+          当前发布包未使用商业代码签名证书。Windows SmartScreen 可能提示未知发布者；macOS 应用使用 ad-hoc 签名且未经过 Apple 公证，首次打开时如被拦截，请在 Finder 中右键点击应用并选择「打开」，或前往「系统设置 → 隐私与安全性」允许运行。
 
           ## 校验
 
@@ -185,6 +256,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
+            release-assets/*.exe \
+            release-assets/*.dmg \
             release-assets/*.zip \
             release-assets/SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" \

@@ -20,6 +20,10 @@
 
 `richtext` 使用 `third_party/richtext` 的本地封装版本，仅补充编辑器滚轮平滑，其余 MyGo 包保持上游依赖。
 
+### 发布包
+
+GitHub Releases 提供 Windows x64 安装程序（可创建开始菜单与桌面快捷方式）和便携版，以及 macOS Apple Silicon 的 DMG 安装镜像和便携版。
+
 ### 数据备份
 
 退出应用后，复制数据库所在目录中的 `xiangying-notes.sqlite` 及同名的 `-wal`、`-shm` 文件（如存在）。应用运行时不要只复制主数据库文件，因为最近的更改可能仍在 WAL 文件中。
