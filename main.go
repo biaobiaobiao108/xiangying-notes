@@ -36,6 +36,15 @@ func chooseDataPath(localData, configDir string, configErr error) string {
 }
 
 func main() {
+	mygo.App.SetName("Xiangying Notes")
+	activation := &instanceActivation{}
+	mygo.App.OnSecondInstance(func(_ []string, _ string) {
+		activation.activate()
+	})
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+
 	dbPath := resolveDataPath()
 	store, err := db.Open(dbPath)
 	if err != nil {
@@ -66,6 +75,7 @@ func main() {
 			TitleBarHeight: 46,
 			Content:        ui.View(app.View),
 		})
+		activation.setWindow(win)
 		win.OnClose(func(e *mygo.CloseEvent) {
 			if !app.SaveCurrentNote() {
 				e.PreventDefault()
