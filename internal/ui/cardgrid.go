@@ -1,12 +1,51 @@
 package ui
 
 import (
+	"math"
+	"sort"
+
 	"github.com/egoist/mygo/ui"
 
 	"xiangying/assets"
 	"xiangying/internal/markdown"
 	"xiangying/internal/model"
 )
+
+const (
+	cardGap          = float32(16)
+	cardPagePad      = float32(24)
+	cardPadV         = float32(17)
+	cardPadH         = float32(18)
+	cardEyebrowH     = float32(13)
+	cardTitleGap     = float32(11)
+	cardTitleSize    = float32(16)
+	cardTitleLine    = cardTitleSize * 1.45
+	cardPreviewGap   = float32(7)
+	cardPreviewSize  = float32(11)
+	cardPreviewLine  = cardPreviewSize * 1.62
+	cardPreviewEnd   = float32(15)
+	cardEmptyPreview = float32(16)
+	cardDividerH     = float32(1)
+	cardDividerGap   = float32(11)
+	cardMetaSize     = float32(9.5)
+	// The UI font's line box is 1.334x its size; MeasureText reports the
+	// theme's larger 14px line box for smaller spans, so meta rows use the
+	// ratio directly.
+	cardMetaLine = cardMetaSize * 1.334
+	cardBorder   = float32(2)
+	cardOverscan = float32(900)
+)
+
+type cardPlacement struct {
+	note   int
+	top    float32
+	height float32
+}
+
+type cardColumnLayout struct {
+	items   [3][]cardPlacement
+	heights [3]float32
+}
 
 func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 	rightPad := windowControlInset(c)
@@ -63,24 +102,172 @@ func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 			return
 		}
 
-		windowWidth, _ := c.Size()
+		windowWidth, windowHeight := c.Size()
 		padX := float32(26)
 		if windowWidth < 1000 {
 			padX = 18
 		}
 		// Three fixed columns, with the gaps and side padding taken out.
-		cardWidth := max((windowWidth-a.sidebarWidth-2*padX-32)/3, 160)
-		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Grid(c).Columns(3).Gap(16).Padding(24, padX).Children(func() {
-				for _, note := range a.notes {
-					a.renderNoteCard(c, p, note, cardWidth)
+		cardWidth := max((windowWidth-a.sidebarWidth-2*padX-2*cardGap)/3, 160)
+		a.ensureCardHeights(c, cardWidth)
+		layout := layoutCardColumns(a.notes, a.cardEstimates, a.cardHeights)
+		viewport := max(windowHeight-topBarHeight(c), 200)
+		viewTop := max(a.cardsScroll.Y-cardPagePad-cardOverscan, 0)
+		viewBottom := a.cardsScroll.Y + viewport - cardPagePad + cardOverscan
+		totalHeight := cardPagePad*2 + max(layout.heights[0], layout.heights[1], layout.heights[2])
+
+		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&a.cardsScroll).Children(func() {
+			// Build only the cards near the viewport; the tall box gives the
+			// scrollbar the full masonry extent.
+			ui.Box(c).FillWidth().Height(totalHeight).Children(func() {
+				for column := range layout.items {
+					items := layout.items[column]
+					first, last := visibleCardRange(items, viewTop, viewBottom)
+					for i := first; i < last; i++ {
+						item := items[i]
+						note := a.notes[item.note]
+						card := a.renderNoteCard(c, p, note, cardWidth)
+						card.Absolute().
+							Left(padX + float32(column)*(cardWidth+cardGap)).
+							Top(cardPagePad + item.top)
+						if bounds := card.Bounds(); bounds.H > 0 {
+							if old, ok := a.cardHeights[note.ID]; !ok || math.Abs(float64(old-bounds.H)) > 0.5 {
+								a.cardHeights[note.ID] = bounds.H
+							}
+						}
+					}
 				}
 			})
 		})
 	})
 }
 
-func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidth float32) {
+func layoutCardColumns(notes []model.Note, estimates, heights map[string]float32) cardColumnLayout {
+	var layout cardColumnLayout
+	// Assign columns from estimates first so column order stays stable while
+	// rendered heights settle, then rebuild tops from the current heights.
+	for i, note := range notes {
+		column := 0
+		for j := 1; j < len(layout.heights); j++ {
+			if layout.heights[j] < layout.heights[column] {
+				column = j
+			}
+		}
+		estimate := estimates[note.ID]
+		if estimate <= 0 {
+			estimate = 120
+		}
+		height := heights[note.ID]
+		if height <= 0 {
+			height = estimate
+		}
+		layout.items[column] = append(layout.items[column], cardPlacement{
+			note:   i,
+			top:    layout.heights[column],
+			height: height,
+		})
+		layout.heights[column] += estimate + cardGap
+	}
+	for i := range layout.items {
+		var top float32
+		for j := range layout.items[i] {
+			if j > 0 {
+				top += cardGap
+			}
+			layout.items[i][j].top = top
+			top += layout.items[i][j].height
+		}
+		layout.heights[i] = top
+	}
+	return layout
+}
+
+func (a *App) ensureCardHeights(c *ui.Context, width float32) {
+	if a.cardHeights == nil || a.cardHeightsWidth != width {
+		a.cardHeights = make(map[string]float32, len(a.notes))
+		a.cardEstimates = make(map[string]float32, len(a.notes))
+		a.cardHeightsWidth = width
+	}
+	lines := cardLineMetrics{
+		title:   measuredLineHeight(c, cardTitleSize, 700, Fonts.Heading),
+		preview: measuredLineHeight(c, cardPreviewSize, 400, ""),
+	}
+	for _, note := range a.notes {
+		if _, ok := a.cardEstimates[note.ID]; !ok {
+			a.cardEstimates[note.ID] = estimateCardHeight(c, note, width, lines)
+		}
+		if _, ok := a.cardHeights[note.ID]; !ok {
+			a.cardHeights[note.ID] = a.cardEstimates[note.ID]
+		}
+	}
+}
+
+func visibleCardRange(items []cardPlacement, top, bottom float32) (int, int) {
+	first := sort.Search(len(items), func(i int) bool {
+		return items[i].top+items[i].height >= top
+	})
+	last := sort.Search(len(items), func(i int) bool {
+		return items[i].top > bottom
+	})
+	if last < first {
+		last = first
+	}
+	return first, last
+}
+
+type cardLineMetrics struct {
+	title   float32
+	preview float32
+}
+
+func estimateCardHeight(c *ui.Context, note model.Note, width float32, lines cardLineMetrics) float32 {
+	textWidth := max(width-2*cardPadH, 1)
+	titleLines := measuredTextLines(c, note.Title, textWidth, lines.title, cardTitleSize, 700, Fonts.Heading, 2)
+	previewLines := 0
+	if note.Preview != "" {
+		previewLines = measuredTextLines(c, note.Preview, textWidth, lines.preview, cardPreviewSize, 400, "", 4)
+	}
+
+	height := 2*cardPadV + cardBorder + cardEyebrowH + cardTitleGap + float32(titleLines)*cardTitleLine
+	if note.Preview != "" {
+		height += cardPreviewGap + float32(previewLines)*cardPreviewLine + cardPreviewEnd
+	} else {
+		height += cardEmptyPreview
+	}
+	return height + cardDividerH + cardDividerGap + cardMetaLine
+}
+
+func measuredTextLines(c *ui.Context, text string, width, lineHeight, size float32, weight int, font string, maxLines int) int {
+	if text == "" {
+		return 0
+	}
+	_, all := c.MeasureText(width, ui.Span{Text: text, Font: font, Size: size, Weight: weight})
+	if lineHeight <= 0 {
+		return 1
+	}
+	return min(max(int(math.Round(float64(all/lineHeight))), 1), maxLines)
+}
+
+func measuredLineHeight(c *ui.Context, size float32, weight int, font string) float32 {
+	_, height := c.MeasureText(0, ui.Span{Text: "字", Font: font, Size: size, Weight: weight})
+	if height <= 0 {
+		return size * 1.2
+	}
+	return height
+}
+
+func noteCardMeta(note model.Note) string {
+	meta := note.NotebookName
+	if meta == "" {
+		meta = "收件箱"
+	}
+	if summary := tagSummary(note.Tags, 2); summary != "" {
+		meta += "  " + summary
+	}
+	return meta
+}
+
+func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidth float32) ui.Element {
 	card := ui.Column(c).
 		Key("card-"+note.ID).
 		Width(cardWidth).
@@ -122,7 +309,7 @@ func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidt
 	eyebrowWidth := card.AnimateTo("eyebrow", conditional(hovered, float32(38), float32(20)), ui.Snappy)
 
 	card.Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+		ui.Row(c).Height(cardEyebrowH).AlignItems(ui.Center).Gap(8).Children(func() {
 			ui.Box(c).Width(eyebrowWidth).Height(2).Radius(1).Background(p.Accent)
 			ui.Box(c).Grow(1)
 			if note.IsFavorite {
@@ -153,15 +340,10 @@ func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidt
 		ui.Box(c).Height(1).FillWidth().Background(p.BorderSoft).Margin(0, 0, 11, 0)
 
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			meta := note.NotebookName
-			if meta == "" {
-				meta = "收件箱"
-			}
-			if summary := tagSummary(note.Tags, 2); summary != "" {
-				meta += "  " + summary
-			}
+			meta := noteCardMeta(note)
 			ui.Text(c, meta).FontSize(9.5).TextColor(p.SoftMuted).Grow(1).SingleLine()
 			ui.Text(c, markdown.RelativeDate(note.UpdatedAt)).FontSize(9.5).TextColor(p.SoftMuted)
 		})
 	})
+	return card
 }

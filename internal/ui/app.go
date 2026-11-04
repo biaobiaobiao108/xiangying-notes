@@ -53,6 +53,10 @@ type App struct {
 	outlineActiveIndex      int
 	outlinePinned           int
 	outlinePinnedUntil      time.Time
+	cardsScroll             ui.ScrollState
+	cardHeights             map[string]float32
+	cardEstimates           map[string]float32
+	cardHeightsWidth        float32
 	dialogNewNotebook       bool
 	dialogNotebookName      string
 	dialogNotebookColor     string
@@ -79,6 +83,8 @@ func NewApp(store *db.Store) *App {
 
 func (a *App) refreshData() {
 	a.saveCurrentNote()
+	a.cardHeights = nil
+	a.cardEstimates = nil
 	a.notebooks, _ = a.store.ListNotebooks()
 	a.notes, _ = a.store.ListNotes(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery)
 	a.tags, _ = a.store.ListAllTags()
@@ -177,6 +183,8 @@ func (a *App) saveCurrentNote() {
 			a.notes[i].Preview = markdown.ExcerptPreview(currentMD, 2, 80)
 			a.notes[i].Tags = newTags
 			a.notes[i].UpdatedAt = time.Now()
+			delete(a.cardHeights, a.selectedNoteID)
+			delete(a.cardEstimates, a.selectedNoteID)
 			break
 		}
 	}

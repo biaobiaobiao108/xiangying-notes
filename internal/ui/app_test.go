@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -265,6 +266,141 @@ func TestCardGridUsesThreeColumns(t *testing.T) {
 	if fourth.Y <= first.Y+1 {
 		t.Fatalf("fourth card should wrap to the next row: y=%.1f, first row=%.1f", fourth.Y, first.Y)
 	}
+}
+
+func TestCardGridMasonryKeepsVariableHeights(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	previews := []string{"短", strings.Repeat("长正文。", 20), strings.Repeat("中等正文。", 8), strings.Repeat("正文。", 3)}
+	for i, preview := range previews {
+		title := "瀑布卡片" + string(rune('A'+i))
+		if _, err := store.CreateNote(app.notebooks[0].ID, title, preview); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	app.layoutMode = model.LayoutGrid
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(500 * time.Millisecond)
+	if len(app.notes) < 4 {
+		t.Fatalf("expected at least 4 notes, got %d", len(app.notes))
+	}
+	var rects [4]ui.Rect
+	for i := 0; i < 4; i++ {
+		rect, ok := tt.Find(app.notes[i].Title)
+		if !ok {
+			t.Fatalf("card %q not found", app.notes[i].Title)
+		}
+		rects[i] = rect
+	}
+	for i := 1; i < 3; i++ {
+		if math.Abs(float64(rects[i].Y-rects[0].Y)) > 1 {
+			t.Fatalf("first three cards should share a top row: %.1f vs %.1f", rects[i].Y, rects[0].Y)
+		}
+	}
+	if rects[3].Y <= rects[0].Y+1 {
+		t.Fatalf("fourth card should start below the first row, got y=%.1f", rects[3].Y)
+	}
+	inColumn := false
+	for i := 0; i < 3; i++ {
+		if math.Abs(float64(rects[3].X-rects[i].X)) <= 1 {
+			inColumn = true
+		}
+	}
+	if !inColumn {
+		t.Fatal("fourth card should continue one of the three columns")
+	}
+	var minHeight, maxHeight float32
+	for i := 0; i < 4; i++ {
+		height := app.cardHeights[app.notes[i].ID]
+		if i == 0 || height < minHeight {
+			minHeight = height
+		}
+		if height > maxHeight {
+			maxHeight = height
+		}
+	}
+	if maxHeight-minHeight < 10 {
+		t.Fatalf("cards should keep their own heights, min=%.1f max=%.1f", minHeight, maxHeight)
+	}
+}
+
+func TestCardGridVirtualizesLargeList(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	for i := 0; i < 60; i++ {
+		title := fmt.Sprintf("虚拟卡片 %02d", i)
+		if _, err := store.CreateNote(app.notebooks[0].ID, title, "正文预览"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	app.layoutMode = model.LayoutGrid
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(500 * time.Millisecond)
+	rendered := renderedNoteCount(tt, app.notes)
+	if rendered == 0 || rendered >= len(app.notes) {
+		t.Fatalf("virtual list should render only the visible cards, rendered=%d total=%d", rendered, len(app.notes))
+	}
+	tt.Wheel(600, 400, 0, 900)
+	tt.Advance(time.Second)
+	if app.cardsScroll.Y <= 0 {
+		t.Fatal("card grid did not scroll")
+	}
+}
+
+func TestCardGridEstimatesMatchRenderedHeights(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	previews := []string{"短", strings.Repeat("正文预览。", 12), "", "English preview that wraps over a couple of lines."}
+	for i, preview := range previews {
+		title := fmt.Sprintf("高度校准 %d 号卡片", i)
+		if _, err := store.CreateNote(app.notebooks[0].ID, title, preview); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	app.layoutMode = model.LayoutGrid
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(500 * time.Millisecond)
+	for i := 0; i < len(previews); i++ {
+		note := app.notes[i]
+		diff := math.Abs(float64(app.cardHeights[note.ID] - app.cardEstimates[note.ID]))
+		if diff > 1.5 {
+			t.Fatalf("card %q estimate %.1f differs from rendered height %.1f by %.1f", note.Title, app.cardEstimates[note.ID], app.cardHeights[note.ID], diff)
+		}
+	}
+}
+
+func renderedNoteCount(tt *ui.Tester, notes []model.Note) int {
+	count := 0
+	for _, note := range notes {
+		if _, ok := tt.Find(note.Title); ok {
+			count++
+		}
+	}
+	return count
 }
 
 func TestOutlineJumpsToHeading(t *testing.T) {
