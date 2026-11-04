@@ -63,25 +63,24 @@ func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 			return
 		}
 
+		windowWidth, _ := c.Size()
+		padX := float32(26)
+		if windowWidth < 1000 {
+			padX = 18
+		}
+		// Three fixed columns, with the gaps and side padding taken out.
+		cardWidth := max((windowWidth-a.sidebarWidth-2*padX-32)/3, 160)
 		ui.Scroll(c).Grow(1).Children(func() {
-			padX := float32(26)
-			if width, _ := c.Size(); width < 1000 {
-				padX = 18
-			}
-			ui.Row(c).FillWidth().Wrap().Gap(16).Padding(24, padX).Children(func() {
+			ui.Grid(c).Columns(3).Gap(16).Padding(24, padX).Children(func() {
 				for _, note := range a.notes {
-					a.renderMasonryCard(c, p, note)
+					a.renderNoteCard(c, p, note, cardWidth)
 				}
 			})
 		})
 	})
 }
 
-func (a *App) renderMasonryCard(c *ui.Context, p Palette, note model.Note) {
-	cardWidth := float32(286)
-	if width, _ := c.Size(); width < 1000 {
-		cardWidth = 250
-	}
+func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidth float32) {
 	card := ui.Column(c).
 		Key("card-"+note.ID).
 		Width(cardWidth).

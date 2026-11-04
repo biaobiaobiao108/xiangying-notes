@@ -356,6 +356,8 @@ func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
 	top := min(max(state.Offset/26, 0), 1)
 	bottom := min(max((state.Max-state.Offset)/26, 0), 1)
 	if top > 0 {
+		// The outline is a reading aid, not a scrollbar surface: cover the
+		// track MyGo draws on hover without taking the pointer from the list.
 		ui.Box(c).
 			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).
 			WidthPercent(100).
@@ -534,7 +536,7 @@ func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntr
 						Label("跳转到 "+heading.Text).
 						WidthPercent(100).
 						Height(outlineRowSize).
-						Padding(0, 8, 0, 8+indent).
+						Padding(0, 16, 0, 8+indent).
 						Border(0, ui.Color{}).
 						Background(ui.Color{}).
 						AlignItems(ui.Center).
@@ -588,6 +590,12 @@ func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntr
 				}
 			})
 		})
+		ui.Box(c).
+			Attach(ui.AnchorTopRight, ui.AnchorTopRight).
+			Width(14).
+			HeightPercent(100).
+			Background(bg).
+			PassThrough()
 
 		topFade := ui.Box(c).
 			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).

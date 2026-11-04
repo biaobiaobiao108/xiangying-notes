@@ -218,6 +218,55 @@ func TestCardViewOpensNoteFullWidth(t *testing.T) {
 	}
 }
 
+func TestCardGridUsesThreeColumns(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	for _, title := range []string{"列一", "列二", "列三"} {
+		if _, err := store.CreateNote(app.notebooks[0].ID, title, "正文"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	app.layoutMode = model.LayoutGrid
+	if len(app.notes) < 4 {
+		t.Fatalf("expected at least 4 notes, got %d", len(app.notes))
+	}
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(200 * time.Millisecond)
+	var first ui.Rect
+	previousX := float32(-1)
+	for i := 0; i < 3; i++ {
+		title := app.notes[i].Title
+		rect, ok := tt.Find(title)
+		if !ok {
+			t.Fatalf("card %q not found", title)
+		}
+		if i == 0 {
+			first = rect
+		} else if math.Abs(float64(rect.Y-first.Y)) > 1 {
+			t.Fatalf("card %q starts on another row: y=%.1f, want %.1f", title, rect.Y, first.Y)
+		}
+		if rect.X <= previousX {
+			t.Fatalf("card %q is not to the right of the previous card: x=%.1f", title, rect.X)
+		}
+		previousX = rect.X
+	}
+	fourth, ok := tt.Find(app.notes[3].Title)
+	if !ok {
+		t.Fatalf("card %q not found", app.notes[3].Title)
+	}
+	if fourth.Y <= first.Y+1 {
+		t.Fatalf("fourth card should wrap to the next row: y=%.1f, first row=%.1f", fourth.Y, first.Y)
+	}
+}
+
 func TestOutlineJumpsToHeading(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
