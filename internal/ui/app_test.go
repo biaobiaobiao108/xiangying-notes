@@ -660,6 +660,103 @@ func TestWheelScrollingAnimates(t *testing.T) {
 	}
 }
 
+func TestPageKeysScrollSmoothly(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	var body strings.Builder
+	for i := 0; i < 80; i++ {
+		body.WriteString("这是一段用于测试分页滚动的正文。\n\n")
+	}
+	note, err := store.CreateNote(app.notebooks[0].ID, "分页测试", body.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(200 * time.Millisecond)
+	if err := tt.Click("笔记正文"); err != nil {
+		t.Fatalf("failed to focus editor: %v", err)
+	}
+	tt.Frame()
+	initial := app.currentDoc.ScrollState().Offset
+
+	tt.Key(0, ui.KeyPageDown)
+	tt.Frame()
+	if got := app.currentDoc.ScrollState().Offset; got != initial {
+		t.Fatalf("page down jumped at once: initial=%.1f now=%.1f", initial, got)
+	}
+	tt.Advance(60 * time.Millisecond)
+	mid := app.currentDoc.ScrollState().Offset
+	if mid == initial {
+		t.Fatalf("page down did not animate: initial=%.1f mid=%.1f", initial, mid)
+	}
+	tt.Advance(300 * time.Millisecond)
+	fixed := app.currentDoc.ScrollState().Offset
+	if fixed <= mid {
+		t.Fatalf("page down did not settle: mid=%.1f final=%.1f", mid, fixed)
+	}
+
+	tt.Key(0, ui.KeyPageUp)
+	tt.Frame()
+	if got := app.currentDoc.ScrollState().Offset; got != fixed {
+		t.Fatalf("page up jumped at once: before=%.1f now=%.1f", fixed, got)
+	}
+	tt.Advance(60 * time.Millisecond)
+	if got := app.currentDoc.ScrollState().Offset; got >= fixed {
+		t.Fatalf("page up did not animate: before=%.1f now=%.1f", fixed, got)
+	}
+}
+
+func TestLargePasteScrollsSmoothly(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	note, err := store.CreateNote(app.notebooks[0].ID, "粘贴滚动", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(200 * time.Millisecond)
+	if err := tt.Click("笔记正文"); err != nil {
+		t.Fatalf("failed to focus editor: %v", err)
+	}
+	tt.Frame()
+	initial := app.currentDoc.ScrollState().Offset
+
+	tt.SetClipboard(strings.Repeat("这是粘贴进来的长段落内容。\n\n", 80))
+	tt.Key(ui.Cmd, ui.KeyV)
+	tt.Frame()
+	if got := app.currentDoc.ScrollState().Offset; got != initial {
+		t.Fatalf("paste jumped at once: initial=%.1f now=%.1f", initial, got)
+	}
+	tt.Advance(60 * time.Millisecond)
+	mid := app.currentDoc.ScrollState().Offset
+	if mid == initial {
+		t.Fatalf("paste did not animate: initial=%.1f mid=%.1f", initial, mid)
+	}
+	tt.Advance(400 * time.Millisecond)
+	final := app.currentDoc.ScrollState().Offset
+	if final <= mid {
+		t.Fatalf("paste scroll did not settle: mid=%.1f final=%.1f", mid, final)
+	}
+}
+
 func TestEmptyNoteKeepsTitleAndBodyApart(t *testing.T) {
 	text := noteText("空笔记", "")
 	if text.ParagraphCount() != 2 {

@@ -52,6 +52,8 @@ func (v *view) input(ev ui.InputEvent) bool {
 		}
 		if ev.Precise || ev.Momentum {
 			before := v.scroll
+			v.jump = nil
+			v.pageJump = false
 			v.scrollSmooth = false
 			v.scrollVel = 0
 			v.setScroll(max(0, min(v.scroll+float64(ev.DY), limit)))
@@ -324,6 +326,7 @@ func (v *view) key(key ui.Key, mods ui.Modifiers) bool {
 		if key == ui.KeyPageUp {
 			lines = -lines
 		}
+		v.pageJump = true
 		v.vertical(lines, shift)
 		return true
 	case ui.KeyHome, ui.KeyEnd:

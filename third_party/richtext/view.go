@@ -110,10 +110,15 @@ type view struct {
 	scrollLast   time.Time
 	scrollSmooth bool
 	jump         *jumpScroll
-	anchor       int
-	anchorOff    float64
-	reveal       bool
-	first, last  int
+	// now is the frame's time, for reveals that ease to the caret.
+	now       time.Time
+	anchor    int
+	anchorOff float64
+	reveal    bool
+	// pageJump marks a reveal from Page Up or Page Down, which eases to
+	// its place even when the caret is already near the viewport.
+	pageJump    bool
+	first, last int
 	// The selection, in runes: anchor and caret, and the caret's visual
 	// edge.
 	selAnchor, caret int
@@ -219,6 +224,7 @@ func build(c *ui.Context, doc *Document, options []EditorOptions, styled bool) u
 		v.opts = options[0]
 	}
 	v.services = c.Services()
+	v.now = c.Now()
 	v.setLook(t, styled)
 	if v.advanceScroll(c.Now()) {
 		c.AnimationFrame()
@@ -788,6 +794,7 @@ func (v *view) startJumpScroll(target float64, smooth bool, now time.Time) {
 // restarting the motion.
 func (v *view) startWheelScroll(dy float64, now time.Time) {
 	v.jump = nil
+	v.pageJump = false
 	base := v.scroll
 	if v.scrollSmooth {
 		base = v.scrollTarget
@@ -866,19 +873,36 @@ func (v *view) layout(w, h float32) {
 	v.place(h)
 	if v.reveal {
 		v.reveal = false
+		target := v.scroll
 		_, y, ch := v.caretAt(v.caret, v.composeCaret, v.affinity)
 		switch {
 		case y < v.scroll:
-			v.setScroll(y)
+			target = y
 		case y+float64(ch) > v.scroll+float64(h):
 			p := v.shown.paraAt(v.caret)
 			for q, room := p-1, y+float64(ch)-v.hs.top(p); q >= 0 && room < float64(h); q-- {
 				room += float64(v.paraLayout(q).h)
 			}
 			_, y, ch = v.caretAt(v.caret, v.composeCaret, v.affinity)
-			v.setScroll(y + float64(ch) - float64(h))
+			target = y + float64(ch) - float64(h)
 		}
-		v.place(h)
+		smooth := v.pageJump || math.Abs(target-v.scroll) >= float64(h)*0.5
+		v.pageJump = false
+		if target != v.scroll {
+			target = max(0, min(target, v.maxScroll()))
+			if smooth && !v.now.IsZero() && math.Abs(target-v.scroll) >= 0.5 {
+				v.startJumpScroll(target, true, v.now)
+				// The jump starts while painting, after this frame's
+				// build: ask for the frame that moves it.
+				v.services.Invalidate()
+			} else {
+				v.jump = nil
+				v.scrollSmooth = false
+				v.scrollVel = 0
+				v.setScroll(target)
+			}
+			v.place(h)
+		}
 	}
 	total := v.hs.top(len(v.paras))
 	if s := max(0, min(v.scroll, total-float64(h))); s != v.scroll {
