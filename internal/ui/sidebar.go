@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -116,7 +117,8 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 
 			if searchInput.Changed() {
 				a.cardViewOpen = false
-				a.refreshData()
+				a.searchDue = c.Now().Add(200 * time.Millisecond)
+				c.After(200 * time.Millisecond)
 			}
 			if a.focusSearch {
 				searchInput.Focus()

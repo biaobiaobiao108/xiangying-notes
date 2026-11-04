@@ -675,6 +675,71 @@ func TestFailedSaveRetainsEditsAndRetries(t *testing.T) {
 	}
 }
 
+func TestPagedListKeepsSelectedNoteOnRefresh(t *testing.T) {
+	store, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app := NewApp(store)
+	for i := 0; i < 60; i++ {
+		if _, err := store.CreateNote(app.notebooks[0].ID, fmt.Sprintf("笔记 %d", i), "正文"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	if !app.notesHaveMore || len(app.notes) > 51 {
+		t.Fatalf("expected bounded first page, got %d notes, more=%v", len(app.notes), app.notesHaveMore)
+	}
+	if !app.loadMoreNotes() {
+		t.Fatal("failed to load next page")
+	}
+	id := app.notes[len(app.notes)-1].ID
+	if !app.selectNote(id) {
+		t.Fatal("failed to select note from next page")
+	}
+	app.refreshData()
+	if app.selectedNoteID != id {
+		t.Fatalf("refresh changed selected note: %q", app.selectedNoteID)
+	}
+	if app.notesHaveMore && !app.loadMoreNotes() {
+		t.Fatal("failed to load next page after refresh")
+	}
+	seen := map[string]bool{}
+	for _, note := range app.notes {
+		if seen[note.ID] {
+			t.Fatalf("duplicate note after paging: %s", note.ID)
+		}
+		seen[note.ID] = true
+	}
+}
+
+func TestScrollingLoadsNextNotePage(t *testing.T) {
+	store, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app := NewApp(store)
+	for i := 0; i < 60; i++ {
+		if _, err := store.CreateNote(app.notebooks[0].ID, fmt.Sprintf("滚动笔记 %d", i), "正文"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(300 * time.Millisecond)
+	initial := len(app.notes)
+	if !app.notesHaveMore {
+		t.Fatal("expected more notes")
+	}
+	tt.Wheel(350, 400, 0, 20000)
+	tt.Advance(time.Second)
+	if len(app.notes) <= initial {
+		t.Fatalf("scroll did not load next page: %d", len(app.notes))
+	}
+}
+
 func TestWheelScrollingAnimates(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))

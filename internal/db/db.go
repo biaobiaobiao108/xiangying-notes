@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
+	"xiangying/internal/markdown"
 )
 
 // Store wraps the SQLite database.
@@ -35,24 +38,25 @@ func Open(dbPath string) (*Store, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	dsn, err := sqliteDSN(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve db path: %w", err)
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	db.SetMaxOpenConns(1) // SQLite single writer safe
-
-	pragmas := []string{
-		"PRAGMA foreign_keys = ON;",
-		"PRAGMA journal_mode = WAL;",
-		"PRAGMA busy_timeout = 5000;",
-		"PRAGMA synchronous = NORMAL;",
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	var journalMode string
+	if err := db.QueryRow("PRAGMA journal_mode = WAL").Scan(&journalMode); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
-	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("exec pragma %s: %w", p, err)
-		}
+	if !strings.EqualFold(journalMode, "wal") {
+		_ = db.Close()
+		return nil, fmt.Errorf("enable WAL: SQLite selected journal mode %q", journalMode)
 	}
 
 	store := &Store{db: db}
@@ -69,12 +73,48 @@ func Open(dbPath string) (*Store, error) {
 	return store, nil
 }
 
+func sqliteDSN(dbPath string) (string, error) {
+	absolute, err := filepath.Abs(dbPath)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.ToSlash(absolute)
+	// A Windows drive path must be placed in the URI path, not its host.
+	if len(path) >= 2 && path[1] == ':' {
+		path = "/" + path
+	}
+	query := url.Values{}
+	query.Add("_pragma", "foreign_keys(1)")
+	query.Add("_pragma", "busy_timeout(5000)")
+	query.Add("_pragma", "synchronous(FULL)")
+	uri := url.URL{Scheme: "file", Path: path, RawQuery: query.Encode()}
+	return uri.String(), nil
+}
+
 // Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
 func (s *Store) migrate() error {
+	var version int
+	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	const schemaVersion = 1
+	if version > schemaVersion {
+		return fmt.Errorf("database schema version %d is newer than supported version %d", version, schemaVersion)
+	}
+	if version == schemaVersion {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin schema migration: %w", err)
+	}
+	defer tx.Rollback()
+
 	schema := `
 CREATE TABLE IF NOT EXISTS notebooks (
 	id TEXT PRIMARY KEY,
@@ -94,15 +134,20 @@ CREATE TABLE IF NOT EXISTS notes (
 	notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE RESTRICT,
 	title TEXT NOT NULL DEFAULT '未命名笔记',
 	content_markdown TEXT NOT NULL DEFAULT '',
+	preview TEXT NOT NULL DEFAULT '',
 	is_favorite INTEGER NOT NULL DEFAULT 0,
 	deleted_at INTEGER,
 	created_at INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_notes_deleted_updated ON notes(deleted_at, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notes_notebook ON notes(notebook_id, deleted_at, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notes_favorite ON notes(is_favorite, deleted_at, updated_at DESC);
+DROP INDEX IF EXISTS idx_notes_deleted_updated;
+DROP INDEX IF EXISTS idx_notes_notebook;
+DROP INDEX IF EXISTS idx_notes_favorite;
+CREATE INDEX IF NOT EXISTS idx_notes_deleted_updated_id ON notes(deleted_at, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_notebook_deleted_updated_id ON notes(notebook_id, deleted_at, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_favorite_deleted_updated_id ON notes(is_favorite, deleted_at, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_inbox_updated ON notes(notebook_id, updated_at DESC, id DESC) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS note_tags (
 	note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
@@ -110,10 +155,116 @@ CREATE TABLE IF NOT EXISTS note_tags (
 	PRIMARY KEY(note_id, tag)
 );
 
-CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag);
+DROP INDEX IF EXISTS idx_note_tags_tag;
+CREATE INDEX IF NOT EXISTS idx_note_tags_tag_note ON note_tags(tag, note_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+	title,
+	content_markdown,
+	content='notes',
+	content_rowid='rowid',
+	tokenize='trigram'
+);
+
+CREATE TRIGGER IF NOT EXISTS notes_fts_insert AFTER INSERT ON notes BEGIN
+	INSERT INTO notes_fts(rowid, title, content_markdown) VALUES (new.rowid, new.title, new.content_markdown);
+END;
+
+CREATE TRIGGER IF NOT EXISTS notes_fts_delete AFTER DELETE ON notes BEGIN
+	INSERT INTO notes_fts(notes_fts, rowid, title, content_markdown)
+	VALUES ('delete', old.rowid, old.title, old.content_markdown);
+END;
+
+CREATE TRIGGER IF NOT EXISTS notes_fts_update AFTER UPDATE OF title, content_markdown ON notes BEGIN
+	INSERT INTO notes_fts(notes_fts, rowid, title, content_markdown)
+	VALUES ('delete', old.rowid, old.title, old.content_markdown);
+	INSERT INTO notes_fts(rowid, title, content_markdown) VALUES (new.rowid, new.title, new.content_markdown);
+END;
 `
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := tx.Exec(schema); err != nil {
+		return fmt.Errorf("create schema: %w", err)
+	}
+	if err := ensureNotePreview(tx); err != nil {
+		return err
+	}
+	if err := backfillNotePreviews(tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("INSERT INTO notes_fts(notes_fts) VALUES ('rebuild')"); err != nil {
+		return fmt.Errorf("rebuild full-text index: %w", err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return fmt.Errorf("set schema version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit schema migration: %w", err)
+	}
+	return nil
+}
+
+func ensureNotePreview(tx *sql.Tx) error {
+	rows, err := tx.Query("PRAGMA table_info(notes)")
+	if err != nil {
+		return fmt.Errorf("inspect notes schema: %w", err)
+	}
+	hasPreview := false
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan notes schema: %w", err)
+		}
+		if name == "preview" {
+			hasPreview = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("read notes schema: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close notes schema: %w", err)
+	}
+	if hasPreview {
+		return nil
+	}
+	if _, err := tx.Exec("ALTER TABLE notes ADD COLUMN preview TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("add note preview column: %w", err)
+	}
+	return nil
+}
+
+func backfillNotePreviews(tx *sql.Tx) error {
+	rows, err := tx.Query("SELECT id, content_markdown FROM notes")
+	if err != nil {
+		return fmt.Errorf("read notes for preview backfill: %w", err)
+	}
+	type noteContent struct{ id, content string }
+	var notes []noteContent
+	for rows.Next() {
+		var note noteContent
+		if err := rows.Scan(&note.id, &note.content); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan note for preview backfill: %w", err)
+		}
+		notes = append(notes, note)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("read notes for preview backfill: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close notes for preview backfill: %w", err)
+	}
+	for _, note := range notes {
+		preview := markdown.ExcerptPreview(note.content, 2, 80)
+		if _, err := tx.Exec("UPDATE notes SET preview = ? WHERE id = ?", preview, note.id); err != nil {
+			return fmt.Errorf("backfill note preview: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) seed() error {
@@ -125,13 +276,18 @@ func (s *Store) seed() error {
 	if count > 0 {
 		return nil
 	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin seed: %w", err)
+	}
+	defer tx.Rollback()
 
 	now := time.Now().Unix()
 	inboxNotebookID := NewUUID()
 	workNotebookID := NewUUID()
 
 	// Seed "收件箱" (Inbox)
-	_, err = s.db.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO notebooks (id, name, color, icon, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 0, ?, ?)",
 		inboxNotebookID, "收件箱", "#365e4e", "inbox", now, now,
 	)
@@ -140,7 +296,7 @@ func (s *Store) seed() error {
 	}
 
 	// Seed "工作" (Work)
-	_, err = s.db.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO notebooks (id, name, color, icon, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 1, ?, ?)",
 		workNotebookID, "工作", "#365e4e", "folder", now, now,
 	)
@@ -232,14 +388,21 @@ func (s *Store) seed() error {
 		if item.isFavorite {
 			favInt = 1
 		}
-		_, _ = s.db.Exec(
-			"INSERT INTO notes (id, notebook_id, title, content_markdown, is_favorite, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
-			noteID, item.notebookID, item.title, item.content, favInt, t, t,
-		)
+		if _, err := tx.Exec(
+			"INSERT INTO notes (id, notebook_id, title, content_markdown, preview, is_favorite, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+			noteID, item.notebookID, item.title, item.content, markdown.ExcerptPreview(item.content, 2, 80), favInt, t, t,
+		); err != nil {
+			return fmt.Errorf("seed note: %w", err)
+		}
 		for _, tag := range item.tags {
-			_, _ = s.db.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", noteID, tag)
+			if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", noteID, tag); err != nil {
+				return fmt.Errorf("seed note tag: %w", err)
+			}
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit seed: %w", err)
+	}
 	return nil
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type App struct {
 	selectedNotebookID string
 	selectedTag        string
 	searchQuery        string
+	searchDue          time.Time
 	focusMode          bool
 	focusSearch        bool
 	focusEditor        bool
@@ -35,9 +37,11 @@ type App struct {
 	revealRun          uint64
 
 	// Cached data.
-	notebooks []model.Notebook
-	notes     []model.Note
-	tags      []model.TagCount
+	notebooks     []model.Notebook
+	notes         []model.Note
+	tags          []model.TagCount
+	noteCursor    *db.NoteCursor
+	notesHaveMore bool
 
 	// Current note and editor.
 	selectedNoteID   string
@@ -87,6 +91,11 @@ func NewApp(store *db.Store) *App {
 }
 
 func (a *App) refreshData() {
+	a.refreshDataWithMetadata(true)
+}
+
+func (a *App) refreshDataWithMetadata(includeMetadata bool) {
+	a.searchDue = time.Time{}
 	if !a.saveCurrentNote() {
 		return
 	}
@@ -94,10 +103,82 @@ func (a *App) refreshData() {
 	a.cardEstimates = nil
 	a.noteListHeights = nil
 	a.noteListEstimates = nil
-	a.notebooks, _ = a.store.ListNotebooks()
-	a.notes, _ = a.store.ListNotes(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery)
-	a.tags, _ = a.store.ListAllTags()
+	notebooks, tags := a.notebooks, a.tags
+	if includeMetadata {
+		var err error
+		notebooks, err = a.store.ListNotebooks()
+		if err != nil {
+			a.showToast("读取笔记本失败")
+			return
+		}
+		tags, err = a.store.ListAllTags()
+		if err != nil {
+			a.showToast("读取标签失败")
+			return
+		}
+	}
+	page, err := a.store.ListNotePage(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery, 50, nil)
+	if err != nil {
+		a.showToast("读取笔记失败")
+		return
+	}
+	if a.selectedNoteID != "" {
+		found := false
+		for _, note := range page.Notes {
+			if note.ID == a.selectedNoteID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			note, matches, err := a.store.GetNoteForView(a.selectedNoteID, a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery)
+			if err != nil {
+				a.showToast("读取当前笔记失败")
+				return
+			}
+			if matches {
+				page.Notes = append(page.Notes, *note)
+				sortNoteSummaries(page.Notes)
+			}
+		}
+	}
+	a.notebooks, a.notes, a.tags = notebooks, page.Notes, tags
+	a.noteCursor, a.notesHaveMore = page.Next, page.HasMore
+	a.noteListScroll.Y, a.cardsScroll.Y = 0, 0
 	a.reconcileSelection()
+}
+
+func (a *App) loadMoreNotes() bool {
+	if !a.notesHaveMore || a.noteCursor == nil {
+		return false
+	}
+	page, err := a.store.ListNotePage(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery, 50, a.noteCursor)
+	if err != nil {
+		a.notesHaveMore = false
+		a.showToast("加载更多笔记失败，请刷新重试")
+		return false
+	}
+	seen := make(map[string]bool, len(a.notes))
+	for _, note := range a.notes {
+		seen[note.ID] = true
+	}
+	for _, note := range page.Notes {
+		if !seen[note.ID] {
+			a.notes = append(a.notes, note)
+		}
+	}
+	sortNoteSummaries(a.notes)
+	a.noteCursor, a.notesHaveMore = page.Next, page.HasMore
+	return true
+}
+
+func sortNoteSummaries(notes []model.Note) {
+	sort.SliceStable(notes, func(i, j int) bool {
+		if notes[i].UpdatedAt.Equal(notes[j].UpdatedAt) {
+			return notes[i].ID > notes[j].ID
+		}
+		return notes[i].UpdatedAt.After(notes[j].UpdatedAt)
+	})
 }
 
 func (a *App) reconcileSelection() {
@@ -136,25 +217,28 @@ func (a *App) selectNote(id string) bool {
 	if !a.saveCurrentNote() {
 		return false
 	}
+	var note *model.Note
+	if id != "" {
+		var err error
+		note, err = a.store.GetNote(id)
+		if err != nil || note == nil {
+			a.showToast("读取笔记失败")
+			return false
+		}
+	}
 	a.selectedNoteID = id
-	a.loadCurrentDocument()
+	a.loadCurrentDocument(note)
 	return true
 }
 
-func (a *App) loadCurrentDocument() {
+func (a *App) loadCurrentDocument(note *model.Note) {
 	a.outlineActiveNote = ""
 	a.outlineActiveIndex = -1
 	a.outlinePinned = -1
 	a.outlinePinnedUntil = time.Time{}
 	a.outlineScroll.X = 0
 	a.outlineScroll.Y = 0
-	if a.selectedNoteID == "" {
-		a.currentDoc = nil
-		a.currentNoteTitle = ""
-		return
-	}
-	note, err := a.store.GetNote(a.selectedNoteID)
-	if err != nil || note == nil {
+	if note == nil {
 		a.currentDoc = nil
 		a.currentNoteTitle = ""
 		return
@@ -200,7 +284,6 @@ func (a *App) saveCurrentNote() bool {
 		if a.notes[i].ID == a.selectedNoteID {
 			tagsChanged = strings.Join(a.notes[i].Tags, "\x00") != strings.Join(newTags, "\x00")
 			a.notes[i].Title = currentTitle
-			a.notes[i].ContentMarkdown = currentMD
 			a.notes[i].Preview = markdown.ExcerptPreview(currentMD, 2, 80)
 			a.notes[i].Tags = newTags
 			a.notes[i].UpdatedAt = time.Now()
@@ -212,7 +295,11 @@ func (a *App) saveCurrentNote() bool {
 		}
 	}
 	if tagsChanged {
-		a.tags, _ = a.store.ListAllTags()
+		if tags, err := a.store.ListAllTags(); err == nil {
+			a.tags = tags
+		} else {
+			a.showToast("读取标签失败")
+		}
 	}
 	return true
 }
@@ -427,6 +514,14 @@ func (a *App) adaptWidths(c *ui.Context) {
 
 // View is the top-level view function called every frame.
 func (a *App) View(c *ui.Context) {
+	if !a.searchDue.IsZero() {
+		if remaining := a.searchDue.Sub(c.Now()); remaining > 0 {
+			c.After(remaining)
+		} else {
+			a.searchDue = time.Time{}
+			a.refreshDataWithMetadata(false)
+		}
+	}
 	p := ResolvePalette(c)
 	c.SetTheme(p.buildTheme())
 
@@ -527,6 +622,16 @@ func (a *App) actionNewNote() {
 	a.cardViewOpen = a.layoutMode == model.LayoutGrid
 	a.focusMode = false
 	a.refreshData()
+	found := false
+	for _, listed := range a.notes {
+		if listed.ID == note.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.notes = append([]model.Note{*note}, a.notes...)
+	}
 	a.selectNote(note.ID)
 	if a.currentDoc != nil {
 		title := []rune(normalizeTitle(a.currentNoteTitle))
@@ -573,6 +678,9 @@ func (a *App) restoreCurrentNote() {
 func (a *App) noteCountLabel() string {
 	if len(a.notes) == 0 {
 		return "暂无笔记"
+	}
+	if a.notesHaveMore {
+		return fmt.Sprintf("已加载 %d 篇笔记", len(a.notes))
 	}
 	return fmt.Sprintf("%d 篇笔记", len(a.notes))
 }

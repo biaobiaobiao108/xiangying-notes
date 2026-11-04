@@ -112,6 +112,9 @@ func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 		viewTop := max(a.cardsScroll.Y-cardPagePad-cardOverscan, 0)
 		viewBottom := a.cardsScroll.Y + viewport - cardPagePad + cardOverscan
 		totalHeight := cardPagePad*2 + max(layout.heights[0], layout.heights[1], layout.heights[2])
+		if a.searchDue.IsZero() && totalHeight-(a.cardsScroll.Y+viewport) < cardOverscan && a.loadMoreNotes() {
+			c.Invalidate()
+		}
 
 		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&a.cardsScroll).Children(func() {
 			// Build only the cards near the viewport; the tall box gives the

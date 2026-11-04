@@ -123,6 +123,9 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 		viewTop := max(a.noteListScroll.Y-noteListOverscan, 0)
 		viewBottom := a.noteListScroll.Y + viewport + noteListOverscan
 		first, last := visibleNoteListRange(entries, viewTop, viewBottom)
+		if a.searchDue.IsZero() && totalHeight-(a.noteListScroll.Y+viewport) < noteListOverscan && a.loadMoreNotes() {
+			c.Invalidate()
+		}
 
 		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&a.noteListScroll).Children(func() {
 			// Only the entries near the viewport are built; the spacer box

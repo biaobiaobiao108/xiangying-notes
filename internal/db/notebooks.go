@@ -62,7 +62,9 @@ func (s *Store) CreateNotebook(name, color, icon string) (*model.Notebook, error
 	id := NewUUID()
 
 	var maxOrder int
-	_ = s.db.QueryRow("SELECT COALESCE(MAX(sort_order), 0) FROM notebooks").Scan(&maxOrder)
+	if err := s.db.QueryRow("SELECT COALESCE(MAX(sort_order), 0) FROM notebooks").Scan(&maxOrder); err != nil {
+		return nil, fmt.Errorf("read notebook order: %w", err)
+	}
 
 	_, err := s.db.Exec(
 		"INSERT INTO notebooks (id, name, color, icon, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
@@ -101,7 +103,10 @@ func (s *Store) UpdateNotebook(id, name, color, icon string) error {
 	if err != nil {
 		return fmt.Errorf("update notebook: %w", err)
 	}
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check updated notebook: %w", err)
+	}
 	if rows == 0 {
 		return fmt.Errorf("notebook not found")
 	}
@@ -113,23 +118,39 @@ func (s *Store) DeleteNotebook(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin delete notebook: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Find fallback notebook
 	var fallbackID string
-	err := s.db.QueryRow("SELECT id FROM notebooks WHERE id != ? ORDER BY is_system DESC, sort_order ASC LIMIT 1", id).Scan(&fallbackID)
+	err = tx.QueryRow("SELECT id FROM notebooks WHERE id != ? ORDER BY is_system DESC, sort_order ASC LIMIT 1", id).Scan(&fallbackID)
 	if err != nil {
 		return fmt.Errorf("cannot delete the only notebook: %w", err)
 	}
 
 	// Move notes to fallback
-	_, err = s.db.Exec("UPDATE notes SET notebook_id = ? WHERE notebook_id = ?", fallbackID, id)
+	_, err = tx.Exec("UPDATE notes SET notebook_id = ? WHERE notebook_id = ?", fallbackID, id)
 	if err != nil {
 		return fmt.Errorf("reassign notes: %w", err)
 	}
 
 	// Delete notebook
-	_, err = s.db.Exec("DELETE FROM notebooks WHERE id = ?", id)
+	result, err := tx.Exec("DELETE FROM notebooks WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("delete notebook: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check deleted notebook: %w", err)
+	}
+	if deleted == 0 {
+		return fmt.Errorf("notebook not found")
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete notebook: %w", err)
 	}
 
 	return nil
