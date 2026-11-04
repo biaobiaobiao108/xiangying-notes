@@ -10,6 +10,8 @@ const (
 	fontUI    = "Microsoft YaHei UI, Segoe UI"
 	fontSerif = "Noto Serif SC, LXGW WenKai, Microsoft YaHei UI"
 	fontMono  = "Maple Mono NF CN, Cascadia Code, Consolas"
+	// uiFontLine is the UI font's line box as a multiple of its size.
+	uiFontLine = 1.334
 )
 
 // Fonts names the families used by the interface without repeating strings

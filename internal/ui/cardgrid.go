@@ -28,12 +28,9 @@ const (
 	cardDividerH     = float32(1)
 	cardDividerGap   = float32(11)
 	cardMetaSize     = float32(9.5)
-	// The UI font's line box is 1.334x its size; MeasureText reports the
-	// theme's larger 14px line box for smaller spans, so meta rows use the
-	// ratio directly.
-	cardMetaLine = cardMetaSize * 1.334
-	cardBorder   = float32(2)
-	cardOverscan = float32(900)
+	cardMetaLine     = cardMetaSize * uiFontLine
+	cardBorder       = float32(2)
+	cardOverscan     = float32(900)
 )
 
 type cardPlacement struct {

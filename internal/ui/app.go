@@ -57,6 +57,10 @@ type App struct {
 	cardHeights             map[string]float32
 	cardEstimates           map[string]float32
 	cardHeightsWidth        float32
+	noteListScroll          ui.ScrollState
+	noteListHeights         map[string]float32
+	noteListEstimates       map[string]float32
+	noteListWidth           float32
 	dialogNewNotebook       bool
 	dialogNotebookName      string
 	dialogNotebookColor     string
@@ -85,6 +89,8 @@ func (a *App) refreshData() {
 	a.saveCurrentNote()
 	a.cardHeights = nil
 	a.cardEstimates = nil
+	a.noteListHeights = nil
+	a.noteListEstimates = nil
 	a.notebooks, _ = a.store.ListNotebooks()
 	a.notes, _ = a.store.ListNotes(a.view, a.selectedNotebookID, a.selectedTag, a.searchQuery)
 	a.tags, _ = a.store.ListAllTags()
@@ -185,6 +191,8 @@ func (a *App) saveCurrentNote() {
 			a.notes[i].UpdatedAt = time.Now()
 			delete(a.cardHeights, a.selectedNoteID)
 			delete(a.cardEstimates, a.selectedNoteID)
+			delete(a.noteListHeights, a.selectedNoteID)
+			delete(a.noteListEstimates, a.selectedNoteID)
 			break
 		}
 	}

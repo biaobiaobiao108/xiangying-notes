@@ -393,6 +393,45 @@ func TestCardGridEstimatesMatchRenderedHeights(t *testing.T) {
 	}
 }
 
+func TestNoteListVirtualizesAndKeepsHeights(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	previews := []string{"", "一行预览文本。", strings.Repeat("两行预览正文。", 10), "短"}
+	for i := 0; i < 60; i++ {
+		title := fmt.Sprintf("虚拟列表笔记 %02d", i)
+		if _, err := store.CreateNote(app.notebooks[0].ID, title, previews[i%len(previews)]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(500 * time.Millisecond)
+	rendered := renderedNoteCount(tt, app.notes)
+	if rendered == 0 || rendered >= len(app.notes) {
+		t.Fatalf("virtual list should render only the visible notes, rendered=%d total=%d", rendered, len(app.notes))
+	}
+	for id, estimate := range app.noteListEstimates {
+		if actual, ok := app.noteListHeights[id]; ok {
+			if diff := math.Abs(float64(actual - estimate)); diff > 1.5 {
+				t.Fatalf("list item estimate %.1f differs from rendered height %.1f by %.1f", estimate, actual, diff)
+			}
+		}
+	}
+
+	tt.Wheel(500, 400, 0, 900)
+	tt.Advance(time.Second)
+	if app.noteListScroll.Y <= 0 {
+		t.Fatal("note list did not scroll")
+	}
+}
+
 func renderedNoteCount(tt *ui.Tester, notes []model.Note) int {
 	count := 0
 	for _, note := range notes {
