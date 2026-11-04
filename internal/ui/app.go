@@ -223,10 +223,20 @@ func noteText(title, content string) richtext.Text {
 		}
 		paragraphs = append(paragraphs, paragraph)
 	}
-	if len(paragraphs) == 1 {
-		paragraphs = append(paragraphs, richtext.Paragraph{})
+	for len(paragraphs) > 1 && paragraphEmpty(paragraphs[len(paragraphs)-1]) {
+		paragraphs = paragraphs[:len(paragraphs)-1]
 	}
+	paragraphs = append(paragraphs, richtext.Paragraph{})
 	return richtext.TextOf(paragraphs...)
+}
+
+func paragraphEmpty(paragraph richtext.Paragraph) bool {
+	for _, run := range paragraph.Runs {
+		if run.Attributes.Attachment != nil || strings.TrimSpace(run.Text) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) setView(view model.ViewType) {

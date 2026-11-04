@@ -39,7 +39,7 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 				ui.Column(c).
 					FillWidth().
 					FillHeight().
-					Padding(18, 6, 52, 6).
+					Padding(18, 6, 10, 6).
 					Children(func() {
 						ui.Box(c).Grow(1).FillWidth().Clip().Background(p.Editor).Children(func() {
 							editor := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
@@ -283,40 +283,51 @@ func (a *App) renderEditorFloatingMeta(c *ui.Context, p Palette) {
 	_, chars := markdown.WordStats(a.currentDoc.Text().PlainText())
 	dock := ui.Row(c).
 		Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).
-		Right(22).
+		Right(18).
 		Bottom(14).
-		Height(30).
-		Padding(0, 4).
-		Gap(2).
-		Radius(8).
-		Background(p.Sidebar).
-		Border(1, p.BorderSoft)
-	dock.Shadow(0, 2, 12, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.20), float32(0.045))))
+		Gap(8)
+	shadow := ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.24), float32(0.055)))
 
 	dock.Children(func() {
-		ui.Text(c, fmt.Sprintf("%s 字", groupDigits(chars))).
-			FontSize(9.5).
-			TextColor(p.Muted).
-			Padding(0, 6).
-			SingleLine()
-
-		ui.Box(c).Width(1).Height(11).Background(p.BorderSoft).Margin(0, 2)
+		stats := ui.Row(c).
+			Height(31).
+			Padding(0, 12).
+			AlignItems(ui.Center).
+			Gap(3).
+			Radius(10).
+			Background(p.Sidebar).
+			Border(1, p.BorderSoft)
+		stats.Shadow(0, 1, 7, 0, shadow)
+		stats.Children(func() {
+			ui.Text(c, groupDigits(chars)).
+				FontSize(11).
+				FontWeight(600).
+				TextColor(p.InkSoft).
+				SingleLine()
+			ui.Text(c, "字").
+				FontSize(9.5).
+				TextColor(p.Muted).
+				SingleLine()
+		})
 
 		outline := ui.Button(c, "").
 			Key("outline-toggle").
-			Height(24).
-			Padding(0, 7).
-			Radius(6).
+			Height(31).
+			Padding(0, 12).
+			Radius(10).
 			Border(0, ui.Color{}).
 			Tooltip(conditional(a.showOutline, "隐藏大纲", "显示大纲"))
+		outline.Background(p.Sidebar)
+		outline.Border(1, p.BorderSoft)
+		outline.Shadow(0, 1, 7, 0, shadow)
 		outline.Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
 				ink := conditional(a.showOutline, p.Accent, p.Muted)
 				ui.Icon(c, assets.IconOutline).FontSize(12).TextColor(ink)
-				ui.Text(c, "大纲").FontSize(9.5).TextColor(ink)
+				ui.Text(c, "大纲").FontSize(10.5).TextColor(ink)
 			})
 		})
-		fill := ui.Color{}
+		fill := p.Sidebar
 		if a.showOutline {
 			fill = p.AccentSoft
 		} else if outline.Hovered() {
@@ -352,7 +363,7 @@ func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
 		ui.Box(c).
 			Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).
 			WidthPercent(100).
-			Height(68).
+			Height(38).
 			Gradient(p.Editor.Alpha(0), p.Editor, 180).
 			Opacity(bottom).
 			PassThrough()
