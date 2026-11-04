@@ -16,112 +16,40 @@ concurrency:
 
 jobs:
   verify:
-    name: Check Bun application
-    runs-on: ubuntu-latest
+    name: Verify Go application
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          bun-version: 1.4.4
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+          go-version-file: go.mod
+          cache: true
 
       - name: Format check
-        run: bun run format --check
+        shell: pwsh
+        run: |
+          $unformatted = gofmt -l .
+          if ($unformatted) {
+            Write-Error "Unformatted Go files:`n$($unformatted -join "`n")"
+            exit 1
+          }
 
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Build application
-        run: bun run build
+      - name: Vet
+        run: go vet ./...
 
       - name: Test
-        run: bun test --check
+        run: go test -count=1 ./...
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build desktop application
+        run: go build -ldflags "-H=windowsgui" -o xiangying.exe .
 
-      - name: Validate Docker image
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          push: false
-          load: true
-          tags: xiangying-notes:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run Docker image smoke check
-        shell: bash
+      - name: Verify build artifact
+        shell: pwsh
         run: |
-          set -euo pipefail
-          container_name=xiangying-notes-ci
-          volume_name=xiangying-notes-ci-data
-          cookie_jar="$(mktemp)"
-          cleanup() {
-            docker rm --force "$container_name" >/dev/null 2>&1 || true
-            docker volume rm "$volume_name" >/dev/null 2>&1 || true
-            rm -f "$cookie_jar"
+          if (-not (Test-Path xiangying.exe)) {
+            throw "xiangying.exe was not produced"
           }
-          trap cleanup EXIT
-          docker volume create "$volume_name" >/dev/null
-          docker run --detach --name "$container_name" --publish 127.0.0.1:3030:3030 \
-            --volume "$volume_name:/data" \
-            --health-interval=1s --health-start-period=1s \
-            --env XIANGYING_USERNAME=ci \
-            --env XIANGYING_PASSWORD=ci-smoke-password \
-            --env PORT=3030 \
-            xiangying-notes:ci
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3030/api/health >/dev/null; then
-              health_status="$(docker inspect --format='{{.State.Health.Status}}' "$container_name")"
-              if [[ "$health_status" == healthy ]]; then
-                docker exec "$container_name" sh -c 'test -w /data && : > /data/.write-check && rm /data/.write-check'
-                break
-              fi
-            fi
-            sleep 1
-          done
-          health_status="$(docker inspect --format='{{.State.Health.Status}}' "$container_name")"
-          if [[ "$health_status" != healthy ]]; then
-            docker logs "$container_name"
-            exit 1
-          fi
-          curl --fail --silent --show-error --cookie-jar "$cookie_jar" \
-            --header 'Content-Type: application/json' \
-            --data '{"username":"ci","password":"ci-smoke-password"}' \
-            http://127.0.0.1:3030/api/auth/login >/dev/null
-          note_response="$(curl --fail --silent --show-error --cookie "$cookie_jar" \
-            --header 'Content-Type: application/json' \
-            --data '{"title":"CI persistence smoke","contentMarkdown":"persisted across restart"}' \
-            http://127.0.0.1:3030/api/notes)"
-          note_id="$(jq -er '.note.id' <<<"$note_response")"
-          docker rm --force "$container_name" >/dev/null
-          docker run --detach --name "$container_name" --publish 127.0.0.1:3030:3030 \
-            --volume "$volume_name:/data" \
-            --health-interval=1s --health-start-period=1s \
-            --env XIANGYING_USERNAME=ci \
-            --env XIANGYING_PASSWORD=ci-smoke-password \
-            --env PORT=3030 \
-            xiangying-notes:ci >/dev/null
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3030/api/health >/dev/null; then
-              health_status="$(docker inspect --format='{{.State.Health.Status}}' "$container_name")"
-              if [[ "$health_status" == healthy ]]; then
-                break
-              fi
-            fi
-            sleep 1
-          done
-          health_status="$(docker inspect --format='{{.State.Health.Status}}' "$container_name")"
-          if [[ "$health_status" != healthy ]]; then
-            docker logs "$container_name"
-            exit 1
-          fi
-          curl --fail --silent --show-error --cookie "$cookie_jar" \
-            "http://127.0.0.1:3030/api/notes/$note_id" \
-            | jq -e '.note.contentMarkdown == "persisted across restart"' >/dev/null
+          Get-Item xiangying.exe | Format-List Name, Length
