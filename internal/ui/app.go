@@ -62,7 +62,10 @@ type App struct {
 	cardHeights             map[string]float32
 	cardEstimates           map[string]float32
 	cardHeightsWidth        float32
+	sidebarScroll           ui.ScrollState
+	sidebarScrollTarget     float32
 	noteListScroll          ui.ScrollState
+	noteListScrollTarget    float32
 	noteListHeights         map[string]float32
 	noteListEstimates       map[string]float32
 	noteListWidth           float32
@@ -145,6 +148,8 @@ func (a *App) refreshDataWithMetadata(includeMetadata bool) {
 	a.notebooks, a.notes, a.tags = notebooks, page.Notes, tags
 	a.noteCursor, a.notesHaveMore = page.Next, page.HasMore
 	a.noteListScroll.Y, a.cardsScroll.Y = 0, 0
+	a.noteListScrollTarget = 0
+	a.noteListScroll.ScrollTo(0, 0, ui.Animation{Duration: time.Nanosecond})
 	a.reconcileSelection()
 }
 

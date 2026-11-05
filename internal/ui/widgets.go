@@ -11,6 +11,29 @@ import (
 
 var colorAnimation = ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}
 
+// listWheelAnimation matches the editor's shorter, critically damped feel
+// instead of MyGo's default wheel curve, which is easy to miss in dense lists.
+var listWheelAnimation = ui.Animation{Spring: ui.SpringOptions{Duration: 280 * time.Millisecond}}
+
+// smoothListWheel turns a mouse-wheel event into a tracked scroll target.
+// Precise events come from touchpads, whose OS momentum is already smooth,
+// so those stay with MyGo's native path.
+func smoothListWheel(state *ui.ScrollState, target *float32, ev ui.InputEvent) bool {
+	if ev.Kind != ui.InputScroll || ev.Precise || ev.Mods&ui.Ctrl != 0 || ev.DY == 0 || state.MaxY <= 0 {
+		return false
+	}
+	if !state.Scrolling() {
+		*target = state.Y
+	}
+	next := max(0, min(*target+ev.DY, state.MaxY))
+	if next == *target {
+		return false
+	}
+	*target = next
+	state.ScrollTo(0, next, listWheelAnimation)
+	return true
+}
+
 func topBarHeight(c *ui.Context) float32 {
 	if height := c.TitleBar().Height; height > 0 {
 		return height

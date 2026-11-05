@@ -432,6 +432,81 @@ func TestNoteListVirtualizesAndKeepsHeights(t *testing.T) {
 	}
 }
 
+func TestNoteListWheelScrollAnimates(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	for i := 0; i < 40; i++ {
+		if _, err := store.CreateNote(app.notebooks[0].ID, fmt.Sprintf("平滑列表笔记 %02d", i), "用于测试列表平滑滚动的正文预览。"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(300 * time.Millisecond)
+	if app.noteListScroll.MaxY <= 0 {
+		t.Fatal("note list should be scrollable")
+	}
+
+	tt.Wheel(500, 400, 0, 500)
+	tt.Frame()
+	if app.noteListScroll.Y != 0 {
+		t.Fatalf("note list jumped at once: %.1f", app.noteListScroll.Y)
+	}
+	tt.Advance(50 * time.Millisecond)
+	mid := app.noteListScroll.Y
+	if mid <= 0 {
+		t.Fatalf("note list did not start moving: %.1f", mid)
+	}
+	tt.Advance(400 * time.Millisecond)
+	if final := app.noteListScroll.Y; final <= mid {
+		t.Fatalf("note list did not continue to its target: mid=%.1f final=%.1f", mid, final)
+	}
+}
+
+func TestSidebarWheelScrollAnimates(t *testing.T) {
+	store, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	for i := 0; i < 40; i++ {
+		if _, err := store.CreateNotebook(fmt.Sprintf("平滑笔记本 %02d", i), "#2d5342", "folder"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshData()
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(300 * time.Millisecond)
+	if app.sidebarScroll.MaxY <= 0 {
+		t.Fatal("sidebar library should be scrollable")
+	}
+
+	tt.Wheel(120, 400, 0, 500)
+	tt.Frame()
+	if app.sidebarScroll.Y != 0 {
+		t.Fatalf("sidebar jumped at once: %.1f", app.sidebarScroll.Y)
+	}
+	tt.Advance(50 * time.Millisecond)
+	mid := app.sidebarScroll.Y
+	if mid <= 0 {
+		t.Fatalf("sidebar did not start moving: %.1f", mid)
+	}
+	tt.Advance(400 * time.Millisecond)
+	if final := app.sidebarScroll.Y; final <= mid {
+		t.Fatalf("sidebar did not continue to its target: mid=%.1f final=%.1f", mid, final)
+	}
+}
+
 func renderedNoteCount(tt *ui.Tester, notes []model.Note) int {
 	count := 0
 	for _, note := range notes {

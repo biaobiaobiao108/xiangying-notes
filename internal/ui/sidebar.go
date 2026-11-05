@@ -11,9 +11,11 @@ import (
 )
 
 const sidebarIconSlot = float32(16)
+const sidebarScrollFade = float32(24)
 
 func (a *App) renderSidebar(c *ui.Context, p Palette) {
-	ui.Column(c).FillHeight().Background(p.Sidebar).Children(func() {
+	sidebar := ui.Column(c).FillHeight().Background(p.Sidebar)
+	sidebar.Children(func() {
 		// Brand and window-drag area.
 		ui.Row(c).
 			Height(topBarHeight(c)).
@@ -155,115 +157,152 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 
 			ui.Box(c).Height(18)
 
-			ui.Scroll(c).Grow(1).Shrink(1).Children(func() {
-				ui.Column(c).FillWidth().Gap(2).Children(func() {
-					// Notebooks.
-					ui.Row(c).Height(26).Padding(0, 7).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, "笔记本").FontSize(10.5).Bold().TextColor(p.Muted).Grow(1)
-						add := ui.Button(c, "").
-							Key("add-notebook").
-							Label("新建笔记本").
-							Width(20).
-							Height(20).
-							Padding(0).
-							Radius(4).
-							Border(0, ui.Color{}).
-							Tooltip("新建笔记本")
-						add.Children(func() {
-							ui.Icon(c, assets.IconPlus).FontSize(12).TextColor(p.Muted)
+			ui.Column(c).Grow(1).Shrink(1).FillWidth().
+				DrawOver(func(painter *ui.Painter, r ui.Rect) {
+					paintSidebarScrollFade(painter, r, p.Sidebar, a.sidebarScroll)
+				}).
+				Children(func() {
+					scroll := ui.Scroll(c).
+						Grow(1).
+						FillWidth().
+						// MyGo has no hide-scrollbar switch; move the bar far
+						// outside the sidebar so it neither paints nor takes presses.
+						ScrollbarInsets(0, -1e6, 0).
+						TrackScroll(&a.sidebarScroll).
+						HandleInput(func(ev ui.InputEvent) bool {
+							return smoothListWheel(&a.sidebarScroll, &a.sidebarScrollTarget, ev)
 						})
-						add.Background(add.AnimateColor("fill", conditional(add.Hovered(), p.SurfaceSelect, ui.Color{}), colorAnimation))
-						if add.Clicked() {
-							a.dialogNewNotebook = true
-							a.dialogNotebookName = ""
-						}
-					})
-
-					for _, notebook := range a.notebooks {
-						if notebook.Name == "收件箱" {
-							continue
-						}
-						isChosen := a.view == model.ViewNotebook && a.selectedNotebookID == notebook.ID && a.searchQuery == ""
-						row := ui.Row(c).
-							Key("nb-"+notebook.ID).
-							Height(31).
-							Padding(0, 8).
-							Radius(6).
-							Gap(8).
-							AlignItems(ui.Center).
-							Cursor(ui.CursorPointer)
-
-						fill := ui.Color{}
-						if isChosen {
-							fill = p.SurfaceSelect
-						} else if row.Hovered() {
-							fill = p.SurfaceHover
-						}
-						row.Background(row.AnimateColor("fill", fill, colorAnimation))
-						ink := p.InkSoft
-						if isChosen {
-							ink = p.Ink
-						}
-
-						if row.Clicked() && !isChosen {
-							a.openNotebook(notebook.ID)
-						}
-						row.Children(func() {
-							dot := parseHexColor(notebook.Color, p.Accent)
-							ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-								ui.Box(c).Size(6, 6).Radius(3).Background(dot)
-							})
-							label := ui.Text(c, notebook.Name).FontSize(12).TextColor(ink).Grow(1).SingleLine()
-							if isChosen {
-								label.Bold()
-							}
-							if notebook.NoteCount > 0 {
-								ui.Text(c, fmt.Sprintf("%d", notebook.NoteCount)).FontSize(10).TextColor(p.SoftMuted)
-							}
-						})
-					}
-
-					if len(a.tags) > 0 {
-						ui.Box(c).Height(19)
-						ui.Row(c).Height(24).Padding(0, 7).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, "标签").FontSize(10.5).Bold().TextColor(p.Muted)
-						})
-						for _, tag := range a.tags {
-							isChosen := a.view == model.ViewTag && a.selectedTag == tag.Tag && a.searchQuery == ""
-							row := ui.Row(c).
-								Key("tag-"+tag.Tag).
-								Height(28).
-								Padding(0, 8).
-								Radius(6).
-								Gap(8).
-								AlignItems(ui.Center).
-								Cursor(ui.CursorPointer)
-							fill := ui.Color{}
-							if isChosen {
-								fill = p.SurfaceSelect
-							} else if row.Hovered() {
-								fill = p.SurfaceHover
-							}
-							row.Background(row.AnimateColor("fill", fill, colorAnimation))
-							if row.Clicked() && !isChosen {
-								a.openTag(tag.Tag)
-							}
-							row.Children(func() {
-								ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-									ui.Text(c, "#").FontSize(11).TextColor(p.Accent)
+					scroll.Children(func() {
+						ui.Column(c).FillWidth().Gap(2).Children(func() {
+							// Notebooks.
+							ui.Row(c).Height(26).Padding(0, 7).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, "笔记本").FontSize(10.5).Bold().TextColor(p.Muted).Grow(1)
+								add := ui.Button(c, "").
+									Key("add-notebook").
+									Label("新建笔记本").
+									Width(20).
+									Height(20).
+									Padding(0).
+									Radius(4).
+									Border(0, ui.Color{}).
+									Tooltip("新建笔记本")
+								add.Children(func() {
+									ui.Icon(c, assets.IconPlus).FontSize(12).TextColor(p.Muted)
 								})
-								ui.Text(c, tag.Tag).FontSize(11.5).TextColor(conditional(isChosen, p.Ink, p.QuietInk)).Grow(1).SingleLine()
-								ui.Text(c, fmt.Sprintf("%d", tag.Count)).FontSize(9.5).TextColor(p.SoftMuted)
+								add.Background(add.AnimateColor("fill", conditional(add.Hovered(), p.SurfaceSelect, ui.Color{}), colorAnimation))
+								if add.Clicked() {
+									a.dialogNewNotebook = true
+									a.dialogNotebookName = ""
+								}
 							})
-						}
-					}
 
-					ui.Box(c).Height(12)
+							for _, notebook := range a.notebooks {
+								if notebook.Name == "收件箱" {
+									continue
+								}
+								isChosen := a.view == model.ViewNotebook && a.selectedNotebookID == notebook.ID && a.searchQuery == ""
+								row := ui.Row(c).
+									Key("nb-"+notebook.ID).
+									Height(31).
+									Padding(0, 8).
+									Radius(6).
+									Gap(8).
+									AlignItems(ui.Center).
+									Cursor(ui.CursorPointer)
+
+								fill := ui.Color{}
+								if isChosen {
+									fill = p.SurfaceSelect
+								} else if row.Hovered() {
+									fill = p.SurfaceHover
+								}
+								row.Background(row.AnimateColor("fill", fill, colorAnimation))
+								ink := p.InkSoft
+								if isChosen {
+									ink = p.Ink
+								}
+
+								if row.Clicked() && !isChosen {
+									a.openNotebook(notebook.ID)
+								}
+								row.Children(func() {
+									dot := parseHexColor(notebook.Color, p.Accent)
+									ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
+										ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+									})
+									label := ui.Text(c, notebook.Name).FontSize(12).TextColor(ink).Grow(1).SingleLine()
+									if isChosen {
+										label.Bold()
+									}
+									if notebook.NoteCount > 0 {
+										ui.Text(c, fmt.Sprintf("%d", notebook.NoteCount)).FontSize(10).TextColor(p.SoftMuted)
+									}
+								})
+							}
+
+							if len(a.tags) > 0 {
+								ui.Box(c).Height(19)
+								ui.Row(c).Height(24).Padding(0, 7).AlignItems(ui.Center).Children(func() {
+									ui.Text(c, "标签").FontSize(10.5).Bold().TextColor(p.Muted)
+								})
+								for _, tag := range a.tags {
+									isChosen := a.view == model.ViewTag && a.selectedTag == tag.Tag && a.searchQuery == ""
+									row := ui.Row(c).
+										Key("tag-"+tag.Tag).
+										Height(28).
+										Padding(0, 8).
+										Radius(6).
+										Gap(8).
+										AlignItems(ui.Center).
+										Cursor(ui.CursorPointer)
+									fill := ui.Color{}
+									if isChosen {
+										fill = p.SurfaceSelect
+									} else if row.Hovered() {
+										fill = p.SurfaceHover
+									}
+									row.Background(row.AnimateColor("fill", fill, colorAnimation))
+									if row.Clicked() && !isChosen {
+										a.openTag(tag.Tag)
+									}
+									row.Children(func() {
+										ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
+											ui.Text(c, "#").FontSize(11).TextColor(p.Accent)
+										})
+										ui.Text(c, tag.Tag).FontSize(11.5).TextColor(conditional(isChosen, p.Ink, p.QuietInk)).Grow(1).SingleLine()
+										ui.Text(c, fmt.Sprintf("%d", tag.Count)).FontSize(9.5).TextColor(p.SoftMuted)
+									})
+								}
+							}
+
+							ui.Box(c).Height(12)
+						})
+					})
 				})
-			})
 		})
 
 	})
+}
+
+func paintSidebarScrollFade(p *ui.Painter, r ui.Rect, background ui.Color, state ui.ScrollState) {
+	height := min(sidebarScrollFade, r.H/2)
+	if height <= 0 {
+		return
+	}
+	if state.Y > 1 {
+		p.FillGradient(
+			ui.Rect{X: r.X, Y: r.Y, W: r.W, H: height},
+			ui.LinearGradient{From: background, To: background.Alpha(0), Angle: 180},
+			0,
+		)
+	}
+	if state.MaxY-state.Y > 1 {
+		p.FillGradient(
+			ui.Rect{X: r.X, Y: r.Y + r.H - height, W: r.W, H: height},
+			ui.LinearGradient{From: background.Alpha(0), To: background, Angle: 180},
+			0,
+		)
+	}
 }
 
 func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG, selected bool, onClick func()) {

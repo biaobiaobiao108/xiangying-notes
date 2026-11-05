@@ -14,9 +14,9 @@ import (
 const (
 	noteListPadV          = float32(7)
 	noteListPadH          = float32(8)
-	noteListItemPadV      = float32(9)
-	noteListItemPadH      = float32(8)
-	noteListTextInset     = float32(37)
+	noteListItemPadV      = float32(10)
+	noteListItemPadH      = float32(11)
+	noteListTextInset     = noteListItemPadH * 2
 	noteListHeaderH       = float32(30)
 	noteListRowGap        = float32(4)
 	noteListGroupGap      = float32(5)
@@ -127,37 +127,44 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 			c.Invalidate()
 		}
 
-		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&a.noteListScroll).Children(func() {
-			// Only the entries near the viewport are built; the spacer box
-			// keeps the scrollbar proportionate to the whole list.
-			ui.Box(c).FillWidth().Height(totalHeight).Children(func() {
-				for i := first; i < last; i++ {
-					entry := entries[i]
-					if entry.header {
-						header := ui.Row(c).
-							Width(itemWidth).
-							Height(noteListHeaderH).
-							Padding(0, 7).
-							AlignItems(ui.Center).
-							Gap(9)
-						header.Children(func() {
-							ui.Text(c, entry.title).FontSize(9.5).Bold().TextColor(p.SoftMuted)
-							ui.Box(c).Grow(1).Height(1).Background(p.BorderSoft)
-						})
-						header.Absolute().Left(noteListPadH).Top(entry.top)
-						continue
-					}
+		ui.Scroll(c).
+			Grow(1).
+			FillWidth().
+			TrackScroll(&a.noteListScroll).
+			HandleInput(func(ev ui.InputEvent) bool {
+				return smoothListWheel(&a.noteListScroll, &a.noteListScrollTarget, ev)
+			}).
+			Children(func() {
+				// Only the entries near the viewport are built; the spacer box
+				// keeps the scrollbar proportionate to the whole list.
+				ui.Box(c).FillWidth().Height(totalHeight).Children(func() {
+					for i := first; i < last; i++ {
+						entry := entries[i]
+						if entry.header {
+							header := ui.Row(c).
+								Width(itemWidth).
+								Height(noteListHeaderH).
+								Padding(0, 7).
+								AlignItems(ui.Center).
+								Gap(9)
+							header.Children(func() {
+								ui.Text(c, entry.title).FontSize(9.5).Bold().TextColor(p.SoftMuted)
+								ui.Box(c).Grow(1).Height(1).Background(p.BorderSoft)
+							})
+							header.Absolute().Left(noteListPadH).Top(entry.top)
+							continue
+						}
 
-					item := a.renderNoteListItem(c, p, entry.note, itemWidth)
-					item.Absolute().Left(noteListPadH).Top(entry.top)
-					if bounds := item.Bounds(); bounds.H > 0 {
-						if old := a.noteListHeights[entry.note.ID]; math.Abs(float64(old-bounds.H)) > 0.5 {
-							a.noteListHeights[entry.note.ID] = bounds.H
+						item := a.renderNoteListItem(c, p, entry.note, itemWidth)
+						item.Absolute().Left(noteListPadH).Top(entry.top)
+						if bounds := item.Bounds(); bounds.H > 0 {
+							if old := a.noteListHeights[entry.note.ID]; math.Abs(float64(old-bounds.H)) > 0.5 {
+								a.noteListHeights[entry.note.ID] = bounds.H
+							}
 						}
 					}
-				}
+				})
 			})
-		})
 	})
 }
 
@@ -241,8 +248,7 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 		Key(note.ID).
 		Width(width).
 		Padding(noteListItemPadV, noteListItemPadH).
-		Radius(8).
-		Gap(7).
+		Radius(9).
 		AlignItems(ui.Stretch).
 		Border(1, conditional(selected, p.Border, ui.Color{})).
 		Cursor(ui.CursorPointer)
@@ -279,7 +285,8 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 	marker := item.AnimateTo("marker", markerTarget, ui.Snappy)
 
 	item.Children(func() {
-		ui.Box(c).Width(2).Height(marker).Radius(1).Background(p.Accent).Margin(0, 10, 0, 0)
+		ui.Box(c).Width(2).Height(marker).Radius(1).Background(p.Accent).
+			Attach(ui.AnchorLeft, ui.AnchorLeft)
 
 		ui.Column(c).Grow(1).Gap(4).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
