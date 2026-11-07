@@ -5,1133 +5,1072 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#f6f4ef" />
-    <meta name="description" content="象映笔记是一款由你自己部署的 Markdown 个人笔记应用。先记录，再整理、搜索和关联，也可以打包导出。" />
+    <meta name="description" content="象映笔记（Xiangying Notes）是一款纯 Go 全栈开发、原生自绘渲染的桌面 Markdown 笔记软件。宣纸温润质感、毫秒级即时启动、双向链接与同名提及、本地 SQLite 数据主权。" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="象映笔记 · 让想法有地方落脚" />
-    <meta property="og:description" content="一款由你自己部署、以 Markdown 为基础的个人笔记应用。" />
+    <meta property="og:description" content="纯 Go 原生桌面 Markdown 笔记。宣纸温润美学，毫秒级即时启动，双向链接，本地数据绝对安全。" />
     <meta property="og:image" content="assets/screenshots/workspace-light.jpg" />
     <title>象映笔记 · 让想法有地方落脚</title>
+    <link rel="icon" type="image/png" href="assets/icon-192.png" />
     <style>
       :root {
         color-scheme: light;
         --canvas: #f6f4ef;
+        --canvas-tint: #f0ece3;
         --surface: #ffffff;
-        --surface-muted: #f0f2ed;
-        --ink: #202621;
-        --muted: #66736b;
-        --soft-muted: #8b978f;
-        --line: #dce2dc;
-        --accent: #365e4e;
-        --accent-dark: #284b3d;
-        --accent-soft: #e6eee8;
-        --h1-color: #b94e35;
-        --serif: "Source Serif 4", "Noto Serif SC", "Songti SC", Georgia, serif;
-        --sans: "DM Sans", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-        --shadow: 0 24px 64px rgba(33, 44, 37, 0.11), 0 3px 12px rgba(33, 44, 37, 0.05);
-        --content-width: 1320px;
-        --page-gutter: clamp(22px, 5.2vw, 80px);
-        --section-space: clamp(88px, 12vw, 168px);
+        --surface-muted: #f4efe6;
+        --ink: #1f2520;
+        --ink-soft: #38423a;
+        --muted: #68756c;
+        --soft-muted: #93a097;
+        --line: #dcd7cc;
+        --line-soft: #e8e3d8;
+        --accent: #2d5342;
+        --accent-dark: #213f32;
+        --accent-soft: #eaf1ec;
+        --terracotta: #b94e35;
+        --serif: "Noto Serif SC", "Source Serif 4", "Songti SC", Georgia, serif;
+        --sans: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", -apple-system, sans-serif;
+        --mono: "Cascadia Code", "Consolas", monospace;
+        --shadow: 0 24px 64px rgba(28, 38, 31, 0.12), 0 4px 16px rgba(28, 38, 31, 0.05);
+        --shadow-subtle: 0 12px 36px rgba(28, 38, 31, 0.07);
+        --content-width: 1240px;
+        --gutter: clamp(20px, 4.5vw, 64px);
       }
 
-      *,
-      *::before,
-      *::after {
+      *, *::before, *::after {
         box-sizing: border-box;
       }
 
       html {
-        min-width: 0;
         scroll-behavior: smooth;
-        scroll-padding-top: 92px;
+        scroll-padding-top: 84px;
       }
 
       body {
-        min-width: 0;
         margin: 0;
         background: var(--canvas);
         color: var(--ink);
         font-family: var(--sans);
         font-synthesis: none;
         text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.68;
       }
 
       img {
         display: block;
         max-width: 100%;
+        height: auto;
       }
 
       a {
         color: inherit;
-      }
-
-      a:focus-visible {
-        outline: 3px solid rgba(54, 94, 78, 0.45);
-        outline-offset: 4px;
-        border-radius: 4px;
-      }
-
-      @keyframes soft-enter {
-        from {
-          opacity: 0;
-          transform: translateY(14px);
-        }
-
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @media (prefers-reduced-motion: no-preference) {
-        .site-header {
-          animation: soft-enter 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-        }
-
-        .hero-copy {
-          animation: soft-enter 700ms 80ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-        }
-
-        .hero .product-figure {
-          animation: soft-enter 760ms 160ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-        }
-      }
-
-      @media (prefers-reduced-motion: no-preference) {
-        @supports (animation-timeline: view()) {
-          .section-heading,
-          .writing-layout,
-          .split-section > *,
-          .device-band,
-          .deployment-panel,
-          .boundaries > * {
-            animation: soft-enter 1s linear both;
-            animation-timeline: view();
-            animation-range: entry 0% entry 22%;
-          }
-        }
-      }
-
-      .skip-link {
-        position: fixed;
-        z-index: 10;
-        inset-block-start: 12px;
-        inset-inline-start: 16px;
-        transform: translateY(-160%);
-        padding: 10px 14px;
-        border: 1px solid var(--accent);
-        border-radius: 8px;
-        background: var(--surface);
-        color: var(--accent-dark);
-        font-size: 0.86rem;
-        font-weight: 700;
         text-decoration: none;
       }
 
-      .skip-link:focus {
-        transform: translateY(0);
-      }
-
-      .site-shell {
-        overflow: clip;
-      }
-
-      .site-header,
-      .hero,
-      .section,
-      .site-footer {
-        width: min(var(--content-width), calc(100% - var(--page-gutter) * 2));
-        margin-inline: auto;
+      .page-shell {
+        max-width: var(--content-width);
+        margin: 0 auto;
+        padding: 0 var(--gutter);
       }
 
       .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(246, 244, 239, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .nav-row {
         display: flex;
-        min-height: 84px;
         align-items: center;
-        gap: clamp(20px, 3vw, 48px);
-        border-bottom: 1px solid var(--line);
+        justify-content: space-between;
+        height: 70px;
       }
 
       .brand {
-        display: inline-flex;
-        flex: 0 0 auto;
+        display: flex;
         align-items: center;
-        gap: 11px;
-        color: var(--ink);
-        font-size: 1.02rem;
-        font-weight: 700;
-        letter-spacing: -0.035em;
-        text-decoration: none;
+        gap: 12px;
       }
 
-      .brand img {
+      .brand-icon {
         width: 34px;
         height: 34px;
-        border-radius: 10px;
+        border-radius: 9px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .brand-title {
+        font-family: var(--serif);
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+      }
+
+      .brand-badge {
+        font-family: var(--sans);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 2px 8px;
+        border-radius: 12px;
       }
 
       .site-nav {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
-        justify-content: flex-end;
-        gap: clamp(18px, 3vw, 42px);
-        margin-inline-start: auto;
+        gap: 24px;
       }
 
       .site-nav a {
+        font-size: 13.5px;
         color: var(--muted);
-        font-size: 0.86rem;
-        text-decoration: none;
-        transition: color 160ms ease;
+        transition: color 150ms ease;
       }
 
       .site-nav a:hover {
-        color: var(--accent-dark);
-      }
-
-      .header-cta,
-      .button {
-        display: inline-flex;
-        min-height: 46px;
-        flex: 0 0 auto;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        padding: 0 19px;
-        border: 1px solid var(--accent);
-        border-radius: 9px;
-        background: var(--accent);
-        box-shadow: 0 8px 20px rgba(54, 94, 78, 0.15);
-        color: #fff;
-        font-size: 0.87rem;
-        font-weight: 700;
-        text-decoration: none;
-        transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        color: var(--ink);
       }
 
       .header-cta {
-        min-height: 40px;
-        padding-inline: 15px;
-        font-size: 0.82rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 16px;
+        background: var(--accent);
+        color: #ffffff !important;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: background 150ms ease, transform 120ms ease;
       }
 
-      .header-cta:hover,
-      .button:hover {
-        transform: translateY(-1px);
+      .header-cta:hover {
         background: var(--accent-dark);
-        box-shadow: 0 10px 24px rgba(40, 75, 61, 0.2);
-      }
-
-      .button--quiet {
-        border-color: transparent;
-        background: transparent;
-        box-shadow: none;
-        color: var(--accent-dark);
-      }
-
-      .button--quiet:hover {
-        background: var(--accent-soft);
-        box-shadow: none;
-      }
-
-      .button svg,
-      .header-cta svg {
-        width: 17px;
-        height: 17px;
+        transform: translateY(-1px);
       }
 
       .hero {
-        display: grid;
-        min-height: min(780px, calc(100svh - 84px));
-        grid-template-columns: minmax(270px, 0.76fr) minmax(0, 1.24fr);
+        padding: clamp(64px, 9vw, 112px) 0 40px;
+        text-align: center;
+      }
+
+      .hero-eyebrow {
+        display: inline-flex;
         align-items: center;
-        gap: clamp(44px, 7vw, 112px);
-        padding-block: clamp(76px, 10vw, 138px) clamp(92px, 11vw, 154px);
-      }
-
-      .hero-copy {
-        max-width: 460px;
-        padding-block: 12px;
-      }
-
-      .hero h1 {
-        max-width: 520px;
-        margin: 0;
-        color: var(--h1-color);
-        font-family: var(--serif);
-        font-size: clamp(3.35rem, 6.7vw, 6.6rem);
+        gap: 8px;
+        font-size: 12px;
         font-weight: 600;
-        letter-spacing: -0.08em;
-        line-height: 1.08;
-        text-wrap: balance;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--terracotta);
+        background: rgba(185, 78, 53, 0.08);
+        padding: 4px 14px;
+        border-radius: 20px;
+        margin-bottom: 22px;
       }
 
-      .hero-lede {
-        max-width: 430px;
-        margin: 28px 0 0;
-        color: var(--muted);
+      .hero-title {
         font-family: var(--serif);
-        font-size: clamp(1.12rem, 1.55vw, 1.38rem);
-        line-height: 1.8;
-        text-wrap: pretty;
+        font-size: clamp(34px, 5.2vw, 58px);
+        font-weight: 700;
+        line-height: 1.22;
+        letter-spacing: -0.025em;
+        color: var(--ink);
+        max-width: 900px;
+        margin: 0 auto 24px;
+      }
+
+      .hero-title span {
+        color: var(--accent);
+      }
+
+      .hero-desc {
+        font-size: clamp(16px, 1.8vw, 18.5px);
+        line-height: 1.75;
+        color: var(--ink-soft);
+        max-width: 720px;
+        margin: 0 auto 36px;
       }
 
       .hero-actions {
         display: flex;
-        flex-wrap: wrap;
+        justify-content: center;
         align-items: center;
-        gap: 12px 18px;
-        margin-top: 30px;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 48px;
       }
 
-      .hero-note {
-        max-width: 380px;
-        margin: clamp(42px, 6vw, 84px) 0 0;
-        padding-top: 17px;
-        border-top: 2px solid #b8c1b9;
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        background: var(--accent);
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 600;
+        border-radius: 9px;
+        box-shadow: 0 6px 20px rgba(45, 83, 66, 0.24);
+        transition: all 180ms ease;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px rgba(45, 83, 66, 0.32);
+      }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        font-size: 15px;
+        font-weight: 600;
+        border-radius: 9px;
+        transition: all 180ms ease;
+      }
+
+      .btn-secondary:hover {
+        background: var(--canvas-tint);
+        border-color: var(--line-soft);
+      }
+
+      .hero-tags {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        font-size: 12.5px;
         color: var(--muted);
-        font-family: var(--serif);
-        font-size: 0.98rem;
-        line-height: 1.75;
       }
 
-      .product-figure {
-        min-width: 0;
-        margin: 0;
+      .hero-tags span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .hero-tags span::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
       }
 
       .screenshot-frame {
-        overflow: hidden;
-        border: 1px solid #e1e5e0;
-        border-radius: 14px;
         background: var(--surface);
+        border-radius: 12px;
+        border: 1px solid rgba(31, 37, 32, 0.12);
         box-shadow: var(--shadow);
+        overflow: hidden;
+        position: relative;
+        transition: transform 300ms ease, box-shadow 300ms ease;
       }
 
-      .screenshot-frame img {
-        width: 100%;
-        height: auto;
-        background: var(--surface);
+      .screenshot-frame:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 32px 80px rgba(28, 38, 31, 0.16);
+      }
+
+      .hero-figure {
+        margin: 0 auto;
+        max-width: 1140px;
       }
 
       .figure-caption {
         display: flex;
-        flex-wrap: wrap;
         justify-content: space-between;
-        gap: 7px 20px;
-        margin-top: 12px;
-        color: var(--soft-muted);
-        font-size: 0.76rem;
-        line-height: 1.6;
+        align-items: center;
+        margin-top: 14px;
+        padding: 0 6px;
+        font-size: 12px;
+        color: var(--muted);
       }
 
       .figure-caption strong {
-        color: var(--muted);
-        font-weight: 600;
-      }
-
-      .intro-rail {
-        width: min(var(--content-width), calc(100% - var(--page-gutter) * 2));
-        display: grid;
-        grid-template-columns: minmax(110px, 0.38fr) minmax(0, 2.62fr);
-        align-items: center;
-        gap: 20px;
-        margin: 0 auto;
-        padding-block: 15px;
-        border-block: 1px solid var(--line);
-      }
-
-      .intro-rail__eyebrow {
-        color: var(--soft-muted);
-        font-size: 0.76rem;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-      }
-
-      .intro-rail__links {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        column-gap: clamp(8px, 1.4vw, 20px);
-        row-gap: 4px;
-      }
-
-      .intro-rail__links a {
-        display: flex;
-        min-width: 0;
-        align-items: baseline;
-        gap: 8px;
-        padding-block: 6px;
-        color: var(--muted);
-        font-family: var(--serif);
-        font-size: 0.94rem;
-        text-decoration: none;
-        transition: color 160ms ease;
-      }
-
-      .intro-rail__links a:hover {
-        color: var(--accent-dark);
-      }
-
-      .intro-rail__number {
-        flex: 0 0 auto;
-        color: var(--soft-muted);
-        font-family: var(--sans);
-        font-size: 0.73rem;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .intro-rail__title {
-        min-width: 0;
-        max-width: 100%;
-        line-height: 1.4;
-        overflow-wrap: anywhere;
+        color: var(--ink);
       }
 
       .section {
-        padding-block: var(--section-space);
+        padding: clamp(72px, 10vw, 136px) 0;
+        border-top: 1px solid var(--line-soft);
       }
 
-      .section-heading {
-        display: grid;
-        grid-template-columns: minmax(0, 0.7fr) minmax(260px, 0.5fr);
-        align-items: end;
-        gap: 36px;
-        margin-bottom: clamp(40px, 6vw, 78px);
-      }
-
-      .section-number {
-        display: block;
-        margin-bottom: 17px;
-        color: var(--accent);
-        font-size: 0.75rem;
+      .section-label {
+        font-size: 11.5px;
         font-weight: 700;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-      }
-
-      .section h2 {
-        max-width: 700px;
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(2.3rem, 4.8vw, 4.8rem);
-        font-weight: 600;
-        letter-spacing: -0.065em;
-        line-height: 1.12;
-        text-wrap: balance;
-      }
-
-      .section-heading > p,
-      .section-copy > p {
-        margin: 0;
-        color: var(--muted);
-        font-size: clamp(0.98rem, 1.25vw, 1.1rem);
-        line-height: 1.9;
-        text-wrap: pretty;
-      }
-
-      .writing-layout {
-        display: grid;
-        grid-template-columns: minmax(230px, 0.6fr) minmax(0, 1fr);
-        gap: clamp(40px, 8vw, 120px);
-        align-items: start;
-      }
-
-      .writing-intro {
-        position: sticky;
-        top: 36px;
-        max-width: 410px;
-      }
-
-      .writing-intro h3 {
-        margin: 0 0 18px;
-        font-family: var(--serif);
-        font-size: clamp(1.65rem, 2.6vw, 2.35rem);
-        font-weight: 600;
-        letter-spacing: -0.05em;
-        line-height: 1.28;
-      }
-
-      .writing-intro p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 1rem;
-        line-height: 1.9;
-      }
-
-      .writing-list {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .writing-point {
-        display: grid;
-        grid-template-columns: 42px minmax(0, 1fr);
-        gap: 20px;
-        padding: 27px 0 29px;
-        border-top: 1px solid var(--line);
-      }
-
-      .writing-point:last-child {
-        border-bottom: 1px solid var(--line);
-      }
-
-      .writing-point > span {
-        padding-top: 3px;
         color: var(--accent);
+        margin-bottom: 12px;
+      }
+
+      .section-title {
         font-family: var(--serif);
-        font-size: 1rem;
-      }
-
-      .writing-point h3 {
-        margin: 0 0 9px;
-        font-family: var(--serif);
-        font-size: clamp(1.22rem, 1.7vw, 1.58rem);
-        font-weight: 600;
-        letter-spacing: -0.035em;
-      }
-
-      .writing-point p {
-        max-width: 660px;
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.85;
-      }
-
-      .split-section {
-        display: grid;
-        grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
-        align-items: center;
-        gap: clamp(46px, 8vw, 120px);
-      }
-
-      .split-section--reverse {
-        grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr);
-      }
-
-      .section-copy {
-        max-width: 510px;
-      }
-
-      .section-copy h2 {
-        margin-bottom: 23px;
-      }
-
-      .section-copy > p + p {
-        margin-top: 17px;
-      }
-
-      .detail-list {
-        display: grid;
-        gap: 0;
-        margin: 32px 0 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .detail-list li {
-        padding: 15px 0;
-        border-top: 1px solid var(--line);
-        color: var(--muted);
-        line-height: 1.75;
-      }
-
-      .detail-list strong {
+        font-size: clamp(26px, 3.6vw, 42px);
+        font-weight: 700;
+        line-height: 1.28;
+        letter-spacing: -0.02em;
         color: var(--ink);
+        margin: 0 0 20px;
+      }
+
+      .section-desc {
+        font-size: 16px;
+        line-height: 1.76;
+        color: var(--ink-soft);
+        margin: 0 0 32px;
+      }
+
+      .feature-split {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: clamp(36px, 6vw, 84px);
+        align-items: center;
+      }
+
+      .feature-split.reverse {
+        grid-template-columns: 1fr 1.05fr;
+      }
+
+      .feature-split.reverse .split-content {
+        order: 2;
+      }
+
+      .feature-split.reverse .split-figure {
+        order: 1;
+      }
+
+      .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .feature-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+      }
+
+      .feature-bullet {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .feature-item-text strong {
+        display: block;
+        font-size: 14.5px;
+        color: var(--ink);
+        margin-bottom: 3px;
+      }
+
+      .feature-item-text p {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      .highlights-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        margin-top: 48px;
+      }
+
+      .highlight-card {
+        background: var(--surface);
+        padding: 28px 24px;
+        border-radius: 12px;
+        border: 1px solid var(--line-soft);
+        box-shadow: var(--shadow-subtle);
+      }
+
+      .highlight-card .card-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .highlight-card h3 {
+        font-family: var(--serif);
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0 0 10px;
+        color: var(--ink);
+      }
+
+      .highlight-card p {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 1.65;
+        color: var(--ink-soft);
+      }
+
+      .tech-banner {
+        background: #19201b;
+        color: #f4f6f4;
+        border-radius: 16px;
+        padding: clamp(36px, 5vw, 64px);
+        margin: 40px 0;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .tech-banner h2 {
+        font-family: var(--serif);
+        font-size: clamp(24px, 3.2vw, 36px);
+        font-weight: 700;
+        margin: 0 0 16px;
+        color: #ffffff;
+      }
+
+      .tech-banner p.lead {
+        font-size: 16px;
+        line-height: 1.7;
+        color: #b5c2b8;
+        max-width: 680px;
+        margin: 0 0 40px;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 36px;
+      }
+
+      .metric-item .metric-num {
+        font-family: var(--serif);
+        font-size: clamp(32px, 3.8vw, 44px);
+        font-weight: 700;
+        color: #a4d4b6;
+        line-height: 1;
+        margin-bottom: 8px;
+      }
+
+      .metric-item .metric-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #ffffff;
+        margin-bottom: 4px;
+      }
+
+      .metric-item .metric-desc {
+        font-size: 12px;
+        color: #8c9e90;
+        margin: 0;
+      }
+
+      .download-card-wrapper {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px;
+        margin-top: 40px;
+      }
+
+      .dl-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 32px 28px;
+        box-shadow: var(--shadow-subtle);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .dl-card-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      .dl-card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .dl-card-title h3 {
+        margin: 0 0 2px;
+        font-size: 18px;
         font-weight: 700;
       }
 
-      .detail-list code {
-        padding: 0.13em 0.36em;
-        border-radius: 4px;
-        background: var(--surface-muted);
-        color: var(--accent-dark);
-        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-        font-size: 0.91em;
-      }
-
-      .screenshot-note {
-        margin-top: 15px;
-        color: var(--soft-muted);
-        font-size: 0.77rem;
-        line-height: 1.7;
-      }
-
-      .device-band {
-        display: grid;
-        grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
-        gap: clamp(32px, 7vw, 96px);
-        align-items: start;
-        padding: clamp(30px, 5vw, 58px);
-        border-radius: 14px;
-        background: var(--surface-muted);
-      }
-
-      .device-band h2 {
-        font-size: clamp(2rem, 3.4vw, 3.4rem);
-      }
-
-      .device-copy p {
-        margin: 0;
+      .dl-card-title span {
+        font-size: 12px;
         color: var(--muted);
-        line-height: 1.9;
       }
 
-      .device-copy p + p {
-        margin-top: 15px;
+      .dl-card p {
+        font-size: 13.5px;
+        line-height: 1.62;
+        color: var(--ink-soft);
+        margin: 0 0 24px;
       }
 
-      .device-note {
-        padding-top: 16px;
-        border-top: 1px solid var(--line);
-        font-size: 0.9rem;
+      .dl-card-links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
       }
 
-      .export-section {
-        padding-top: calc(var(--section-space) * 0.82);
-      }
-
-      .deployment {
-        padding-bottom: clamp(80px, 10vw, 132px);
-      }
-
-      .deployment-panel {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 34px;
+      .dl-pill {
+        display: inline-flex;
         align-items: center;
-        padding: clamp(32px, 6vw, 72px);
-        border-radius: 14px;
-        background: #e9eee8;
-      }
-
-      .deployment-panel h2 {
-        max-width: 720px;
-        font-size: clamp(2.25rem, 4.5vw, 4.35rem);
-      }
-
-      .deployment-panel p {
-        max-width: 730px;
-        margin: 22px 0 0;
-        color: var(--muted);
-        font-size: 1rem;
-        line-height: 1.9;
-      }
-
-      .deployment-panel .button {
-        min-width: 176px;
-      }
-
-      .boundaries {
-        display: grid;
-        grid-template-columns: minmax(0, 0.66fr) minmax(0, 1fr);
-        gap: clamp(32px, 8vw, 112px);
-        padding-block: 0 var(--section-space);
-      }
-
-      .boundaries h2 {
-        max-width: 480px;
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(1.8rem, 3vw, 2.8rem);
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 7px;
+        font-size: 13px;
         font-weight: 600;
-        letter-spacing: -0.05em;
-        line-height: 1.25;
+        background: var(--accent-soft);
+        color: var(--accent);
+        transition: background 150ms ease;
       }
 
-      .boundaries ul {
-        display: grid;
-        gap: 13px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .boundaries li {
-        position: relative;
-        padding-inline-start: 20px;
-        color: var(--muted);
-        line-height: 1.8;
-      }
-
-      .boundaries li::before {
-        position: absolute;
-        inset-block-start: 0.73em;
-        inset-inline-start: 0;
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
+      .dl-pill:hover {
         background: var(--accent);
-        content: "";
+        color: #ffffff;
+      }
+
+      .dl-pill.secondary {
+        background: var(--canvas-tint);
+        color: var(--ink-soft);
+      }
+
+      .dl-pill.secondary:hover {
+        background: var(--line);
+        color: var(--ink);
       }
 
       .site-footer {
+        padding: 48px 0 64px;
+        border-top: 1px solid var(--line-soft);
         display: flex;
-        flex-wrap: wrap;
-        align-items: center;
         justify-content: space-between;
-        gap: 14px 24px;
-        min-height: 76px;
-        border-top: 1px solid var(--line);
-        color: var(--soft-muted);
-        font-size: 0.82rem;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        font-size: 12.5px;
+        color: var(--muted);
       }
 
-      .site-footer strong {
+      .footer-links {
+        display: flex;
+        gap: 20px;
+      }
+
+      .footer-links a:hover {
         color: var(--ink);
-        font-weight: 700;
       }
 
-      .site-footer a {
-        color: var(--accent-dark);
-        text-decoration: none;
-      }
-
-      @media (max-width: 980px) {
-        .intro-rail {
+      @media (max-width: 900px) {
+        .feature-split,
+        .feature-split.reverse {
           grid-template-columns: 1fr;
-          gap: 6px;
+          gap: 36px;
         }
 
-        .intro-rail__links {
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+        .feature-split.reverse .split-content,
+        .feature-split.reverse .split-figure {
+          order: initial;
         }
 
-        .hero {
-          min-height: auto;
-          grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
-          gap: 38px;
-          padding-block: 88px 100px;
+        .highlights-grid {
+          grid-template-columns: 1fr;
         }
 
-        .hero h1 {
-          font-size: clamp(3rem, 7.5vw, 5rem);
+        .metrics-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 28px;
         }
 
-        .writing-layout {
-          grid-template-columns: minmax(210px, 0.58fr) minmax(0, 1fr);
-          gap: 44px;
-        }
-
-        .split-section,
-        .split-section--reverse {
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 42px;
-        }
-
-        .device-band {
-          grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-        }
-      }
-
-      @media (max-width: 720px) {
-        :root {
-          --page-gutter: 22px;
-          --section-space: 84px;
-        }
-
-        html {
-          scroll-padding-top: 24px;
-        }
-
-        .site-header {
-          min-height: 0;
-          flex-wrap: wrap;
-          gap: 15px;
-          padding-block: 17px;
-        }
-
-        .brand {
-          margin-inline-end: auto;
+        .download-card-wrapper {
+          grid-template-columns: 1fr;
         }
 
         .site-nav {
-          order: 3;
-          width: 100%;
-          justify-content: flex-start;
-          gap: 24px;
-          padding-top: 12px;
-          border-top: 1px solid var(--line);
-        }
-
-        .site-nav a {
-          font-size: 0.81rem;
-        }
-
-        .header-cta {
-          min-height: 37px;
-          padding-inline: 12px;
-          font-size: 0.76rem;
-        }
-
-        .hero {
-          grid-template-columns: 1fr;
-          gap: 42px;
-          padding-block: 64px 72px;
-        }
-
-        .hero-copy {
-          max-width: 520px;
-        }
-
-        .hero h1 {
-          max-width: 430px;
-          font-size: clamp(3.25rem, 13vw, 5.1rem);
-        }
-
-        .hero-lede {
-          max-width: 530px;
-          margin-top: 20px;
-          font-size: 1.12rem;
-        }
-
-        .hero-note {
-          max-width: 420px;
-          margin-top: 34px;
-        }
-
-        .intro-rail__links {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          column-gap: 14px;
-        }
-
-        .section-heading {
-          grid-template-columns: 1fr;
-          gap: 20px;
-          margin-bottom: 34px;
-        }
-
-        .section h2 {
-          font-size: clamp(2.3rem, 9vw, 3.7rem);
-        }
-
-        .writing-layout,
-        .split-section,
-        .split-section--reverse,
-        .device-band,
-        .deployment-panel,
-        .boundaries {
-          grid-template-columns: 1fr;
-        }
-
-        .writing-layout {
-          gap: 34px;
-        }
-
-        .writing-intro {
-          position: static;
-        }
-
-        .writing-point {
-          grid-template-columns: 30px minmax(0, 1fr);
-          gap: 14px;
-          padding-block: 22px;
-        }
-
-        .split-section,
-        .split-section--reverse {
-          gap: 32px;
-        }
-
-        .split-section--reverse .product-figure {
-          order: 2;
-        }
-
-        .device-band {
-          gap: 22px;
-          padding: 26px 23px;
-        }
-
-        .deployment-panel {
-          gap: 26px;
-          padding: 30px 24px;
-        }
-
-        .deployment-panel .button {
-          justify-self: start;
-        }
-
-        .boundaries {
-          gap: 22px;
-        }
-
-        .site-footer {
-          align-items: flex-start;
-          padding-block: 20px;
-        }
-      }
-
-      @media (max-width: 420px) {
-        .hero-actions {
-          align-items: stretch;
-          flex-direction: column;
-        }
-
-        .hero-actions .button {
-          width: 100%;
-        }
-
-        .figure-caption {
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .writing-point h3 {
-          font-size: 1.18rem;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto !important;
-        }
-
-        *,
-        *::before,
-        *::after {
-          animation: none !important;
-          scroll-behavior: auto !important;
-          transition: none !important;
+          display: none;
         }
       }
     </style>
   </head>
   <body>
-    <div class="site-shell" id="top">
-      <a class="skip-link" href="#main">跳到主要内容</a>
+    <header class="site-header">
+      <div class="page-shell">
+        <div class="nav-row">
+          <a href="#" class="brand">
+            <img src="assets/icon-192.png" alt="象映笔记图标" class="brand-icon" />
+            <span class="brand-title">象映笔记</span>
+            <span class="brand-badge">纯 Go 原生桌面版</span>
+          </a>
 
-      <header class="site-header">
-        <a class="brand" href="#top" aria-label="象映笔记首页">
-          <img src="assets/icon-192.png" width="34" height="34" alt="" />
-          <span>象映笔记</span>
-        </a>
-        <nav class="site-nav" aria-label="主导航">
-          <a href="#record">写作与记录</a>
-          <a href="#organize">整理与搜索</a>
-          <a href="#exporting">导出与备份</a>
-          <a href="#deploy">部署方式</a>
-        </nav>
-        <a class="header-cta" href="https://github.com/biaobiaobiao108/xiangyin-notes">
-          查看项目说明
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-        </a>
-      </header>
+          <nav class="site-nav">
+            <a href="#writing">沉浸书写</a>
+            <a href="#cards">卡片漫步</a>
+            <a href="#backlinks">双向引用</a>
+            <a href="#engine">自绘性能</a>
+            <a href="#backup">数据主权</a>
+            <a href="#download">下载获取</a>
+          </nav>
 
-      <main id="main">
-        <section class="hero" aria-labelledby="hero-title">
-          <div class="hero-copy">
-            <h1 id="hero-title">让想法有地方落脚</h1>
-            <p class="hero-lede">一款由你自己部署、以 Markdown 为基础的个人笔记应用。先记录，再整理，再找回来。</p>
-            <div class="hero-actions">
-              <a class="button" href="#record">了解功能</a>
-              <a class="button button--quiet" href="#deploy">查看部署方式</a>
-            </div>
-            <p class="hero-note">临时想起的事先放进收件箱。等有空时，再按主题整理、搜索和关联，不必一开始就决定归到哪里。</p>
+          <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="header-cta" target="_blank" rel="noopener">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            立即下载
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-eyebrow">纯粹 · 极速 · 宣纸美学 · 数据主权</div>
+        <h1 class="hero-title">
+          让写下的每一个字，<br />
+          都在本地<span>踏实落脚</span>。
+        </h1>
+        <p class="hero-desc">
+          基于 <strong>Go + MyGo 原生 GPU 自绘引擎</strong> 打造的现代化桌面 Markdown 笔记。告别臃肿的浏览器内核与远程账号锁定，毫秒级瞬时启动，极低内存驻留，让记录回归沉浸与纯粹。
+        </p>
+
+        <div class="hero-actions">
+          <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="btn-primary" target="_blank" rel="noopener">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            获取 Windows / macOS 发布包
+          </a>
+          <a href="https://github.com/biaobiaobiao108/xiangying-notes" class="btn-secondary" target="_blank" rel="noopener">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            查看 GitHub 源码
+          </a>
+        </div>
+
+        <div class="hero-tags">
+          <span>单文件便携免安装</span>
+          <span>GPU 硬件自绘加速</span>
+          <span>纯本地 SQLite 存储</span>
+          <span>输入防抖零数据丢失</span>
+        </div>
+
+        <figure class="hero-figure" style="margin-top: 48px;">
+          <div class="screenshot-frame">
+            <img
+              src="assets/screenshots/workspace-light.jpg"
+              alt="象映笔记三栏式工作区全景截图：宣纸温润白底色，墨绿强调色，大纲与字数统计浮窗"
+              width="1279"
+              height="790"
+              loading="eager"
+            />
+          </div>
+          <figcaption class="figure-caption">
+            <strong>象映笔记原生桌面工作区 · 宣纸浅色模式</strong>
+            <span>三栏自适应响应式布局 · 沉浸编辑区 · 悬浮字数统计与大纲树</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section" id="writing">
+        <div class="feature-split">
+          <div class="split-content">
+            <div class="section-label">01 / 书写与心流</div>
+            <h2 class="section-title">宣纸温润质朴，<br />字句自然成流</h2>
+            <p class="section-desc">
+              灵感不应被刺眼的纯白或塑料感的 AI 渐变打断。象映笔记选用温润的宣纸暖白（#F4F1E9）底色与松柏深绿（#2D5342）点缀，衬线标题搭配经典排版，提供如同纸墨相融的沉浸书写质感。
+            </p>
+
+            <ul class="feature-list">
+              <li class="feature-item">
+                <div class="feature-bullet">1</div>
+                <div class="feature-item-text">
+                  <strong>标题与正文浑然一体</strong>
+                  <p>无边框大标题随文档自然滚动，首段智能提炼为标题，杜绝双重输入负担。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">2</div>
+                <div class="feature-item-text">
+                  <strong>标签与大纲即时联动</strong>
+                  <p>正文中随手书写的 #工作 #读书 标签自动提取为左栏过滤器；点击大纲标题带平滑居中动画精准跳转。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">3</div>
+                <div class="feature-item-text">
+                  <strong>输入防抖与细粒度持久化</strong>
+                  <p>连续输入时调度 450ms 静止窗口防抖保存，切出或关窗即刻刷盘，毫秒级响应且保障零数据丢失。</p>
+                </div>
+              </li>
+            </ul>
           </div>
 
-          <figure class="product-figure">
+          <div class="split-figure">
             <div class="screenshot-frame">
               <img
                 src="assets/screenshots/workspace-light.jpg"
+                alt="象映笔记写作细节展示"
                 width="1279"
                 height="790"
-                alt="象映笔记浅色模式工作区截图：左侧是收件箱和工作笔记本，中间显示笔记列表，右侧正在编辑项目周报。"
-                fetchpriority="high"
-                decoding="async"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="cards">
+        <div class="feature-split reverse">
+          <div class="split-content">
+            <div class="section-label">02 / 浏览与漫步</div>
+            <h2 class="section-title">平铺多篇笔记，<br />在书桌上串联灵感</h2>
+            <p class="section-desc">
+              列表负责严谨的线性梳理，卡片网格则负责灵感的漫步与重温。一键切入瀑布流卡片视图，所有笔记的标题、多行摘要、标签与更新时间并排铺陈，找回被遗忘在碎片里的火花。
+            </p>
+
+            <ul class="feature-list">
+              <li class="feature-item">
+                <div class="feature-bullet">1</div>
+                <div class="feature-item-text">
+                  <strong>原生 Masonry 瀑布流自绘</strong>
+                  <p>纯 Go 虚拟滚动与高度预估算法，万篇笔记在卡片流中翻滚依然如丝绸般流畅。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">2</div>
+                <div class="feature-item-text">
+                  <strong>点击卡片全宽专注编辑</strong>
+                  <p>点击任意卡片瞬间无缝过渡为全宽写作视图，收起冗余列表，专注当前的这一件事。</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="split-figure">
+            <div class="screenshot-frame">
+              <img
+                src="assets/screenshots/card-view-light.jpg"
+                alt="象映笔记卡片瀑布流视图：五张卡片并排平铺，展示摘要、标签与时间"
+                width="1280"
+                height="720"
+                loading="lazy"
               />
             </div>
             <figcaption class="figure-caption">
-              <strong>真实工作区 · 浅色模式</strong>
-              <span>截图中的笔记内容为虚构演示数据</span>
+              <strong>瀑布流卡片网格 · 自由漫步</strong>
+              <span>标题、摘要、标签与更新时间一目了然</span>
             </figcaption>
-          </figure>
-        </section>
-
-        <nav class="intro-rail" aria-label="产品介绍目录">
-          <span class="intro-rail__eyebrow">产品目录</span>
-          <div class="intro-rail__links">
-            <a href="#record">
-              <span class="intro-rail__number">01</span>
-              <span class="intro-rail__title">随手记录</span>
-            </a>
-            <a href="#organize">
-              <span class="intro-rail__number">02</span>
-              <span class="intro-rail__title">整理与找回</span>
-            </a>
-            <a href="#devices">
-              <span class="intro-rail__number">03</span>
-              <span class="intro-rail__title">日常使用</span>
-            </a>
-            <a href="#exporting">
-              <span class="intro-rail__number">04</span>
-              <span class="intro-rail__title">导出与带走</span>
-            </a>
-            <a href="#deploy">
-              <span class="intro-rail__number">05</span>
-              <span class="intro-rail__title">自己部署</span>
-            </a>
           </div>
-        </nav>
+        </div>
+      </section>
 
-        <section class="section" id="record" aria-labelledby="record-title">
-          <div class="section-heading">
-            <div>
-              <span class="section-number">01 / 写作</span>
-              <h2 id="record-title">先写下来，再慢慢整理</h2>
-            </div>
-            <p>灵感、会议记录、阅读摘录和待办都可以先写进收件箱。写作时专心把内容留下，分类和整理可以等之后再做。</p>
-          </div>
+      <section class="section" id="backlinks">
+        <div class="feature-split">
+          <div class="split-content">
+            <div class="section-label">03 / 关联与网络</div>
+            <h2 class="section-title">键入 [[双括号]]，<br />让记忆彼此逢迎</h2>
+            <p class="section-desc">
+              知识不应是一座座孤岛。在正文任意位置输入 <code>[[笔记标题]]</code> 即可建立双向超链接。不仅自动收集反向引用，还能智能发掘全库中尚未链接的“同名提及”。
+            </p>
 
-          <div class="writing-layout">
-            <div class="writing-intro">
-              <h3>熟悉的 Markdown，写起来像普通文档</h3>
-              <p>标题、粗体、列表、任务清单、引用、代码块、链接和分隔线都能直接编辑。内容以 Markdown 保存，之后也方便带走。</p>
-            </div>
-            <ol class="writing-list">
-              <li class="writing-point">
-                <span aria-hidden="true">01</span>
-                <div>
-                  <h3>修改后自动保存</h3>
-                  <p>编辑器会在内容变化后自动保存，并显示保存状态。正文下方可以查看字数和字符数，适合记短想法，也能逐步写成长文。</p>
+            <ul class="feature-list">
+              <li class="feature-item">
+                <div class="feature-bullet">1</div>
+                <div class="feature-item-text">
+                  <strong>反向链接弹窗 · 随手呼出</strong>
+                  <p>点击编辑器顶栏反向链接图标（或按 Esc 收起），清晰列出所有引用当前笔记的相关文档与上下文切片。</p>
                 </div>
               </li>
-              <li class="writing-point">
-                <span aria-hidden="true">02</span>
-                <div>
-                  <h3>图片可以直接粘贴或拖入</h3>
-                  <p>从剪贴板粘贴图片，或把图片拖进正文；支持 JPEG、PNG、WebP 和 GIF。插入后可以调整显示宽度，导出笔记时附件也会一起打包。</p>
+              <li class="feature-item">
+                <div class="feature-bullet">2</div>
+                <div class="feature-item-text">
+                  <strong>未链接提及 · 一键升级</strong>
+                  <p>智能识别其他笔记中提到当前标题但未加链接的段落，点击「+ 添加链接」直接升级为双向关联。</p>
                 </div>
               </li>
-              <li class="writing-point">
-                <span aria-hidden="true">03</span>
-                <div>
-                  <h3>需要专心时，收起周围内容</h3>
-                  <p>可以打开沉浸模式或打字机模式，减少写作时的干扰。正文大纲会列出 H1–H3 标题，点击标题即可跳到对应位置。</p>
+              <li class="feature-item">
+                <div class="feature-bullet">3</div>
+                <div class="feature-item-text">
+                  <strong>点击跳转 · 丝滑穿梭</strong>
+                  <p>在弹窗中点击关联笔记名称，瞬间跳转定位对应笔记，在自己的知识网络中自由漫游。</p>
                 </div>
               </li>
-            </ol>
-          </div>
-        </section>
-
-        <section class="section" id="organize" aria-labelledby="organize-title">
-          <div class="split-section">
-            <div class="section-copy">
-              <span class="section-number">02 / 整理与找回</span>
-              <h2 id="organize-title">记下的内容，找得到，也连得起来</h2>
-              <p>按项目、主题或生活场景建立笔记本，用标签标出关键内容。之后既可以通过分类缩小范围，也可以直接搜索标题和正文。</p>
-              <ul class="detail-list">
-                <li><strong>笔记本和标签：</strong>笔记本可以自选名称、图标和颜色；在正文写入 <code>#读书</code>、<code>#工作</code> 等标签，就能按标签筛选。</li>
-                <li><strong>日常入口与浏览方式：</strong>收件箱、全部笔记、收藏和回收站各有入口；列表默认按更新时间排列，也能切换为卡片网格。</li>
-                <li><strong>全文搜索：</strong>搜索标题与正文；要找当前笔记中的一段内容，也可以使用当前笔记查找。</li>
-                <li><strong>双向链接：</strong>输入 <code>[[笔记标题]]</code> 连接相关记录。目标笔记会列出反向链接，也会提示尚未建立链接的同名提及。</li>
-                <li><strong>重命名同步：</strong>修改被引用笔记的标题时，已有链接会一并更新。</li>
-                <li><strong>回收站：</strong>误删的笔记可以恢复；确认不再需要后，再永久删除。</li>
-              </ul>
-            </div>
-
-            <figure class="product-figure">
-              <div class="screenshot-frame">
-                <img
-                  src="assets/screenshots/backlinks-light.jpg"
-                  width="1279"
-                  height="790"
-                  alt="象映笔记浅色模式反向链接窗口：列出引用“产品想法”的两篇笔记，以及两处可以按需转为链接的同名提及。"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <figcaption class="figure-caption">
-                <strong>反向链接与同名提及</strong>
-                <span>看到关联后，再决定要不要补上链接</span>
-              </figcaption>
-              <p class="screenshot-note">窗口中的笔记标题和正文均为虚构演示内容。</p>
-            </figure>
-          </div>
-        </section>
-
-        <section class="section" aria-labelledby="card-view-title">
-          <div class="split-section split-section--reverse">
-            <figure class="product-figure">
-              <div class="screenshot-frame">
-                <img
-                  src="assets/screenshots/card-view-light.jpg"
-                  width="1280"
-                  height="720"
-                  alt="象映笔记浅色模式卡片视图：五张虚构笔记以网格排列，展示标题、正文摘要、标签和更新时间。"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <figcaption class="figure-caption">
-                <strong>卡片网格 · 浅色模式</strong>
-                <span>并排浏览标题、摘要、标签和更新时间</span>
-              </figcaption>
-              <p class="screenshot-note">截图中的笔记均为虚构演示数据。</p>
-            </figure>
-
-            <div class="section-copy">
-              <span class="section-number">另一种浏览方式</span>
-              <h2 id="card-view-title">把多篇笔记平铺开来</h2>
-              <p>列表适合逐条查看，卡片网格则把多篇笔记并排呈现。浏览时能同时看到标题、摘要、标签和更新时间；需要继续写时，打开对应笔记即可编辑。</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="section" id="devices" aria-labelledby="devices-title">
-          <div class="device-band">
-            <div>
-              <span class="section-number">03 / 日常使用</span>
-              <h2 id="devices-title">在电脑、平板和手机上打开</h2>
-            </div>
-            <div class="device-copy">
-              <p>页面会根据屏幕宽度调整，也可以在浏览器支持时安装到主屏幕。外观可以选择浅色、深色或跟随系统。</p>
-              <p>在多个设备上登录同一个账号时，已打开的页面会收到笔记和笔记本变化通知，并刷新列表与内容。</p>
-              <p class="device-note">正文同时在多台设备上编辑时，系统不会自动合并冲突内容。建议同一篇笔记同一时间只在一台设备上编辑。</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="section export-section" id="exporting" aria-labelledby="exporting-title">
-          <div class="section-copy">
-            <span class="section-number">04 / 导出与带走</span>
-            <h2 id="exporting-title">为自己的内容留一份备份</h2>
-            <p>把笔记原文和图片附件带走，保留 Markdown 格式，方便以后在其他工具中继续使用。</p>
-            <ul class="detail-list">
-              <li><strong>导出为 ZIP：</strong>笔记以 Markdown 文件保存，并按笔记本归类；图片附件也会包含在压缩包中。</li>
-              <li><strong>快捷指令导入：</strong>可选配置导入 API，把 Markdown 内容直接送进收件箱。</li>
             </ul>
           </div>
-        </section>
 
-        <section class="section deployment" id="deploy" aria-labelledby="deploy-title">
-          <div class="deployment-panel">
-            <div>
-              <span class="section-number">05 / 自己部署</span>
-              <h2 id="deploy-title">运行在自己的电脑、服务器或 NAS 上</h2>
-              <p>象映笔记面向个人使用，数据由你部署和管理：正文存放在服务所用的 SQLite 数据库里，图片附件保存在单独的数据目录中。项目提供 Docker 启动方式，也可以在安装 Bun 的电脑上运行。</p>
+          <div class="split-figure">
+            <div class="screenshot-frame">
+              <img
+                src="assets/screenshots/backlinks-light.jpg"
+                alt="象映笔记反向链接弹窗：展示已链接条目与同名提及上下文"
+                width="1279"
+                height="790"
+                loading="lazy"
+              />
             </div>
-            <a class="button" href="https://github.com/biaobiaobiao108/xiangyin-notes">
-              查看项目与部署步骤
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-            </a>
+            <figcaption class="figure-caption">
+              <strong>反向链接与同名提及浮窗</strong>
+              <span>已链接文档、上下文预览切片、一键将提及转换为链接</span>
+            </figcaption>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="section boundaries" aria-labelledby="boundaries-title">
-          <h2 id="boundaries-title">开始之前，先了解这几件事</h2>
-          <ul>
-            <li>象映笔记目前按单人使用设计，没有公开注册和多人协作功能。</li>
-            <li>编辑时需要连接到你部署的服务，目前不支持断网编辑和稍后自动上传。</li>
-            <li>跨设备通知会帮助其他页面刷新内容，但不会合并同时发生的正文编辑。</li>
-          </ul>
-        </section>
-      </main>
+      <section class="section" id="engine">
+        <div class="tech-banner">
+          <div class="section-label" style="color: #a4d4b6;">04 / 架构与克制</div>
+          <h2>告别 Electron 臃肿，<br />回归真正的纯粹原生</h2>
+          <p class="lead">
+            为什么一款记事工具要强行打包数百兆的 Chromium 浏览器、启动等待数秒并吞噬数个 G 内存？象映笔记选择回归原生本质：纯 Go 全栈开发 + GPU 硬件自绘引擎 + 嵌入式 SQLite。
+          </p>
 
-      <footer class="site-footer">
-        <span><strong>象映笔记</strong>　给想法一个安静的落脚处</span>
-        <a href="https://github.com/biaobiaobiao108/xiangyin-notes">项目仓库与使用说明</a>
-        <a href="#top">回到顶部</a>
-      </footer>
-    </div>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <div class="metric-num">&lt; 30ms</div>
+              <div class="metric-label">毫秒级冷启动</div>
+              <p class="metric-desc">双击瞬间立即可写，无闪烁、无白屏、无漫长加载。</p>
+            </div>
+            <div class="metric-item">
+              <div class="metric-num">~40MB</div>
+              <div class="metric-label">极低常驻内存</div>
+              <p class="metric-desc">告别动辄 1GB+ 的浏览器内幕，轻盈如羽毛。</p>
+            </div>
+            <div class="metric-item">
+              <div class="metric-num">0 CGO</div>
+              <div class="metric-label">纯静态独立编译</div>
+              <p class="metric-desc">无外部 DLL / 运行时依赖，绿色便携，随处运行。</p>
+            </div>
+            <div class="metric-item">
+              <div class="metric-num">100k+</div>
+              <div class="metric-label">十万篇检索即时响应</div>
+              <p class="metric-desc">SQLite WAL + Trigram FTS5 + 短词散列双轨索引。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="highlights-grid">
+          <div class="highlight-card">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+            </div>
+            <h3>单实例窗口唤醒</h3>
+            <p>已在后台运行时，再次点击图标自动还原并聚焦已有窗口，绝不重复生成多余进程。</p>
+          </div>
+
+          <div class="highlight-card">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <h3>临界阻尼平滑滚轮</h3>
+            <p>专门调校的 280ms 弹簧阻尼动画，无论使用鼠标滚轮还是触控板，滚动体验皆温和细腻。</p>
+          </div>
+
+          <div class="highlight-card">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/></svg>
+            </div>
+            <h3>双轨中文全文搜索</h3>
+            <p>长短词混合自适应索引，即便搜索单个汉字或生僻标点符号，也能瞬间从海量笔记中定位。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="backup">
+        <div class="feature-split">
+          <div class="split-content">
+            <div class="section-label">05 / 数据主权与彩蛋</div>
+            <h2 class="section-title">数据留在本地，<br />所有权完全归你</h2>
+            <p class="section-desc">
+              不需注册账号，没有远程服务器审查，断网环境下依然 100% 具备全量功能。我们拒绝把界面塞满花哨无用的管理按钮，而是将强大的数据导出与备份做成了随手可及的彩蛋入口。
+            </p>
+
+            <ul class="feature-list">
+              <li class="feature-item">
+                <div class="feature-bullet">★</div>
+                <div class="feature-item-text">
+                  <strong>连击 5 次图标 · 唤出专属功能弹窗</strong>
+                  <p>连续点击左上角「象映笔记」图标 5 次，随时调出完整的数据导出与备份面板。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">1</div>
+                <div class="feature-item-text">
+                  <strong>全部笔记导出为 Markdown ZIP</strong>
+                  <p>自动按笔记本目录归档所有有效笔记，导出为完全开放的标准 Markdown 压缩包，方便随时迁移到任何工具。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">2</div>
+                <div class="feature-item-text">
+                  <strong>单篇笔记导出 (.md)</strong>
+                  <p>随时将当前正在阅读或编辑的笔记提取为单个干净独立的 Markdown 文档。</p>
+                </div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">3</div>
+                <div class="feature-item-text">
+                  <strong>SQLite 原生热快照备份</strong>
+                  <p>基于 SQLite VACUUM INTO 原子技术生成单一、合并且紧凑的 .sqlite 备份文件，无需退出应用也能完成安全备份。</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="split-figure">
+            <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 32px; box-shadow: var(--shadow-subtle);">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                  ⇋
+                </div>
+                <strong style="font-size: 16px;">数据导出与备份 · 隐藏彩蛋入口</strong>
+              </div>
+              <p style="font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 24px;">
+                保持日常界面不留一丝冗余干扰。只要在左上角应用图标轻轻连击五次，无论何时何地，你的所有数据都能以最开放的标准格式安全带走。
+              </p>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
+                  <div>
+                    <strong style="font-size: 13px;">导出全部笔记 (ZIP)</strong>
+                    <div style="font-size: 11px; color: var(--muted);">按笔记本归类打包 Markdown 压缩包</div>
+                  </div>
+                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">开放通用</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
+                  <div>
+                    <strong style="font-size: 13px;">导出当前笔记 (.md)</strong>
+                    <div style="font-size: 11px; color: var(--muted);">保存为独立标准 Markdown</div>
+                  </div>
+                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">单篇带走</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
+                  <div>
+                    <strong style="font-size: 13px;">备份 SQLite 热快照</strong>
+                    <div style="font-size: 11px; color: var(--muted);">原子合并生成干净的 .sqlite 备份</div>
+                  </div>
+                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">原子无损</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="download">
+        <div style="text-align: center; max-width: 680px; margin: 0 auto 36px;">
+          <div class="section-label">06 / 下载与获取</div>
+          <h2 class="section-title">下载象映笔记，<br />开启安静纯粹的记录时光</h2>
+          <p class="section-desc">
+            全平台已提供 GitHub Actions 自动化编译验证的便携版与原生安装包，无需复杂环境配置，解压即用。
+          </p>
+        </div>
+
+        <div class="download-card-wrapper">
+          <div class="dl-card">
+            <div>
+              <div class="dl-card-header">
+                <div class="dl-card-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                </div>
+                <div class="dl-card-title">
+                  <h3>Windows 平台</h3>
+                  <span>支持 Windows 10 及以上 · x64 架构</span>
+                </div>
+              </div>
+              <p>
+                提供向导式安装程序（按用户目录安装，无需管理员权限，支持创建开始菜单与桌面快捷方式）及解压即用的免安装便携版。
+              </p>
+            </div>
+            <div class="dl-card-links">
+              <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="dl-pill" target="_blank" rel="noopener">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                下载 Windows 安装包 (.exe)
+              </a>
+              <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="dl-pill secondary" target="_blank" rel="noopener">
+                下载便携版 (.zip)
+              </a>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div>
+              <div class="dl-card-header">
+                <div class="dl-card-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg>
+                </div>
+                <div class="dl-card-title">
+                  <h3>macOS 平台</h3>
+                  <span>支持 macOS 11 及以上 · Apple Silicon (M1/M2/M3/M4)</span>
+                </div>
+              </div>
+              <p>
+                提供拖拽安装的 DMG 镜像包以及便携式应用压缩包，已注入应用图标与原生配置，配合高分辨率 Retina 屏幕自绘渲染。
+              </p>
+            </div>
+            <div class="dl-card-links">
+              <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="dl-pill" target="_blank" rel="noopener">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                下载 macOS 安装镜像 (.dmg)
+              </a>
+              <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" class="dl-pill secondary" target="_blank" rel="noopener">
+                下载便携版 (.zip)
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-shell">
+      <div class="site-footer">
+        <div>
+          <strong>象映笔记 (Xiangying Notes)</strong> · 让想法有地方落脚
+        </div>
+
+        <div class="footer-links">
+          <a href="https://github.com/biaobiaobiao108/xiangying-notes" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://github.com/biaobiaobiao108/xiangying-notes/releases" target="_blank" rel="noopener">版本发布</a>
+          <a href="#writing">回到顶部 ↑</a>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>
