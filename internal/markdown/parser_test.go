@@ -110,3 +110,66 @@ func TestLooksLikeMarkdown(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractWikiLinks(t *testing.T) {
+	input := `# 测试
+关联了 [[产品想法]] 和 [[架构设计|系统架构]]。
+` + "```" + `
+[[代码里的链接不应提取]]
+` + "```" + `
+重复引用：[[产品想法]] 与 [[收件箱笔记]]。`
+
+	links := ExtractWikiLinks(input)
+	if len(links) != 3 {
+		t.Fatalf("expected 3 unique links, got %d: %v", len(links), links)
+	}
+	if links[0] != "产品想法" || links[1] != "架构设计" || links[2] != "收件箱笔记" {
+		t.Errorf("unexpected links: %v", links)
+	}
+}
+
+func TestFindBacklinkMentionsAndLinkMention(t *testing.T) {
+	doc := `这是项目周报。
+相关笔记: [[产品想法]]、本周工作安排
+- 周三: 整理 产品想法
+` + "```" + `
+忽略代码块中的 产品想法
+` + "```"
+
+	mentions := FindBacklinkMentions(doc, "产品想法")
+	if len(mentions) != 2 {
+		t.Fatalf("expected 2 mentions, got %d: %+v", len(mentions), mentions)
+	}
+	if !mentions[0].IsLinked || mentions[0].Snippet != "相关笔记: [[产品想法]]、本周工作安排" {
+		t.Errorf("unexpected first mention: %+v", mentions[0])
+	}
+	if mentions[1].IsLinked || mentions[1].Snippet != "- 周三: 整理 产品想法" {
+		t.Errorf("unexpected second mention: %+v", mentions[1])
+	}
+
+	linkedDoc, ok := LinkMention(doc, "产品想法")
+	if !ok {
+		t.Fatal("expected LinkMention to succeed")
+	}
+	wantLinkedLine := "- 周三: 整理 [[产品想法]]"
+	if !testingContains(linkedDoc, wantLinkedLine) {
+		t.Errorf("expected linkedDoc to contain %q, got:\n%s", wantLinkedLine, linkedDoc)
+	}
+	// First linked line remains linked
+	if !testingContains(linkedDoc, "相关笔记: [[产品想法]]、本周工作安排") {
+		t.Errorf("first line was corrupted:\n%s", linkedDoc)
+	}
+}
+
+func testingContains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
+}
+
+func stringContains(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

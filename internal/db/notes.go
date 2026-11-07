@@ -399,14 +399,40 @@ func (s *Store) UpdateNote(id, title, content string) error {
 		return fmt.Errorf("update note %s: %w", id, sql.ErrNoRows)
 	}
 
-	// Refresh tags
-	if _, err := tx.Exec("DELETE FROM note_tags WHERE note_id = ?", id); err != nil {
-		return fmt.Errorf("delete note tags: %w", err)
+	newTags := markdown.ExtractTags(content)
+	existingRows, err := tx.Query("SELECT tag FROM note_tags WHERE note_id = ? ORDER BY tag ASC", id)
+	if err != nil {
+		return fmt.Errorf("read note tags: %w", err)
 	}
-	tags := markdown.ExtractTags(content)
-	for _, tag := range tags {
-		if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag); err != nil {
-			return fmt.Errorf("insert note tag: %w", err)
+	var oldTags []string
+	for existingRows.Next() {
+		var tag string
+		if err := existingRows.Scan(&tag); err != nil {
+			_ = existingRows.Close()
+			return fmt.Errorf("scan note tag: %w", err)
+		}
+		oldTags = append(oldTags, tag)
+	}
+	_ = existingRows.Close()
+
+	tagsChanged := len(newTags) != len(oldTags)
+	if !tagsChanged {
+		for i := range newTags {
+			if newTags[i] != oldTags[i] {
+				tagsChanged = true
+				break
+			}
+		}
+	}
+
+	if tagsChanged {
+		if _, err := tx.Exec("DELETE FROM note_tags WHERE note_id = ?", id); err != nil {
+			return fmt.Errorf("delete note tags: %w", err)
+		}
+		for _, tag := range newTags {
+			if _, err := tx.Exec("INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)", id, tag); err != nil {
+				return fmt.Errorf("insert note tag: %w", err)
+			}
 		}
 	}
 	if err := syncShortSearchIndex(tx, id, title, content); err != nil {

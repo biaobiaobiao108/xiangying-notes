@@ -63,6 +63,15 @@ func main() {
 	defer store.Close()
 
 	app := uiApp.NewApp(store)
+	app.SetFileSaver(func(defaultName, ext, filterName string) (string, error) {
+		return mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Title:       "保存文件",
+			DefaultPath: defaultName,
+			Filters: []mygo.FileFilter{
+				{Name: filterName, Extensions: []string{ext}},
+			},
+		})
+	})
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{

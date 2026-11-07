@@ -69,7 +69,7 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 									a.pasteClipboard(c.Services())
 								})
 							if editor.Changed() {
-								a.saveCurrentNote()
+								a.scheduleSave(c)
 							}
 							if a.focusEditor {
 								editor.Focus()
@@ -241,6 +241,10 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 					if a.iconButton(c, p, "copy-markdown", assets.IconExport, "复制 Markdown").Clicked() {
 						c.Services().WriteClipboard(a.currentDoc.Text().Markdown())
 						a.showToast("已复制 Markdown")
+					}
+
+					if a.iconButton(c, p, "backlinks", assets.IconBacklinks, "反向链接").Clicked() {
+						a.openBacklinks()
 					}
 
 					if a.iconButton(c, p, "undo", assets.IconHistory, "撤销").Clicked() {

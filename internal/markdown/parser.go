@@ -12,6 +12,7 @@ import (
 
 var (
 	tagRegex         = regexp.MustCompile(`(?:\s|^)\\?#([a-zA-Z0-9_\p{Han}]+)`)
+	wikiLinkRegex    = regexp.MustCompile(`\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]`)
 	headingRegex     = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
 	orderedListRegex = regexp.MustCompile(`^\d{1,3}[.)]\s+`)
 )
@@ -117,6 +118,143 @@ func ExtractTags(markdown string) []string {
 	}
 
 	return tags
+}
+
+// ExtractWikiLinks finds all [[note title]] references outside fenced code blocks.
+func ExtractWikiLinks(markdown string) []string {
+	var links []string
+	seen := make(map[string]bool)
+
+	lines := strings.Split(markdown, "\n")
+	var fence codeFence
+
+	for _, line := range lines {
+		if skipCodeFence(line, &fence) {
+			continue
+		}
+
+		matches := wikiLinkRegex.FindAllStringSubmatch(line, -1)
+		for _, m := range matches {
+			if len(m) > 1 {
+				target := strings.TrimSpace(m[1])
+				if target != "" && !seen[target] {
+					seen[target] = true
+					links = append(links, target)
+				}
+			}
+		}
+	}
+
+	return links
+}
+
+// BacklinkMention describes an occurrence of a target note title within a document.
+type BacklinkMention struct {
+	Snippet  string
+	IsLinked bool
+}
+
+// FindBacklinkMentions finds references or mentions of targetTitle in markdown text.
+func FindBacklinkMentions(markdown, targetTitle string) []BacklinkMention {
+	targetTitle = strings.TrimSpace(targetTitle)
+	if targetTitle == "" || targetTitle == "未命名笔记" {
+		return nil
+	}
+
+	var results []BacklinkMention
+	lines := strings.Split(markdown, "\n")
+	var fence codeFence
+
+	for _, line := range lines {
+		if skipCodeFence(line, &fence) {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || !strings.Contains(trimmed, targetTitle) {
+			continue
+		}
+
+		matches := wikiLinkRegex.FindAllStringSubmatch(trimmed, -1)
+		isLinked := false
+		for _, m := range matches {
+			if len(m) > 1 && strings.TrimSpace(m[1]) == targetTitle {
+				isLinked = true
+				break
+			}
+		}
+
+		snippet := trimmed
+		runes := []rune(snippet)
+		if len(runes) > 120 {
+			snippet = string(runes[:120]) + "…"
+		}
+
+		results = append(results, BacklinkMention{
+			Snippet:  snippet,
+			IsLinked: isLinked,
+		})
+	}
+
+	return results
+}
+
+// LinkMention converts the first unlinked mention of targetTitle into [[targetTitle]].
+func LinkMention(markdown, targetTitle string) (string, bool) {
+	targetTitle = strings.TrimSpace(targetTitle)
+	if targetTitle == "" || targetTitle == "未命名笔记" {
+		return markdown, false
+	}
+
+	lines := strings.Split(markdown, "\n")
+	var fence codeFence
+	replaced := false
+
+	for i, line := range lines {
+		if skipCodeFence(line, &fence) {
+			continue
+		}
+		if replaced || !strings.Contains(line, targetTitle) {
+			continue
+		}
+
+		newLine, ok := replaceUnlinkedMention(line, targetTitle)
+		if ok {
+			lines[i] = newLine
+			replaced = true
+			break
+		}
+	}
+
+	if !replaced {
+		return markdown, false
+	}
+	return strings.Join(lines, "\n"), true
+}
+
+func replaceUnlinkedMention(line, targetTitle string) (string, bool) {
+	idx := 0
+	for {
+		pos := strings.Index(line[idx:], targetTitle)
+		if pos < 0 {
+			return line, false
+		}
+		matchStart := idx + pos
+		matchEnd := matchStart + len(targetTitle)
+
+		openBracket := strings.LastIndex(line[:matchStart], "[[")
+		closeBracket := strings.LastIndex(line[:matchStart], "]]")
+		if openBracket != -1 && (closeBracket == -1 || closeBracket < openBracket) {
+			afterClose := strings.Index(line[matchEnd:], "]]")
+			if afterClose != -1 {
+				idx = matchEnd
+				continue
+			}
+		}
+
+		result := line[:matchStart] + "[[" + targetTitle + "]]" + line[matchEnd:]
+		return result, true
+	}
 }
 
 // ExtractHeadings finds headings for document outline.

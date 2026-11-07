@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ type App struct {
 	selectedTag        string
 	searchQuery        string
 	searchDue          time.Time
+	saveDue            time.Time
 	focusMode          bool
 	focusSearch        bool
 	focusEditor        bool
@@ -73,6 +76,11 @@ type App struct {
 	dialogNotebookName      string
 	dialogNotebookColor     string
 	dialogConfirmEmptyTrash bool
+	dialogBacklinks         bool
+	backlinks               []model.BacklinkItem
+	backlinksNoteID         string
+	dialogExport            bool
+	fileSaver               func(defaultName, ext, filterName string) (string, error)
 
 	pendingToast string
 }
@@ -261,6 +269,7 @@ func (a *App) loadCurrentDocument(note *model.Note) {
 func (a *App) SaveCurrentNote() bool { return a.saveCurrentNote() }
 
 func (a *App) saveCurrentNote() bool {
+	a.saveDue = time.Time{}
 	if a.selectedNoteID == "" || a.currentDoc == nil {
 		return true
 	}
@@ -307,6 +316,151 @@ func (a *App) saveCurrentNote() bool {
 		}
 	}
 	return true
+}
+
+func (a *App) scheduleSave(c *ui.Context) {
+	a.saveDue = c.Now().Add(450 * time.Millisecond)
+	c.After(450 * time.Millisecond)
+}
+
+// SetFileSaver configures the native file save dialog handler.
+func (a *App) SetFileSaver(fn func(defaultName, ext, filterName string) (string, error)) {
+	a.fileSaver = fn
+}
+
+func (a *App) promptSaveFile(defaultName, ext, filterName string) (string, error) {
+	if a.fileSaver != nil {
+		return a.fileSaver(defaultName, ext, filterName)
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = "."
+	}
+	exportDir := filepath.Join(homeDir, "Xiangying_Exports")
+	_ = os.MkdirAll(exportDir, 0755)
+	return filepath.Join(exportDir, defaultName), nil
+}
+
+func (a *App) exportAllNotesZip() {
+	if !a.saveCurrentNote() {
+		return
+	}
+	defaultName := fmt.Sprintf("象映笔记备份_%s.zip", time.Now().Format("20060102_150405"))
+	destPath, err := a.promptSaveFile(defaultName, "zip", "ZIP 压缩文件 (*.zip)")
+	if err != nil || destPath == "" {
+		return
+	}
+	count, err := a.store.ExportAllNotesZip(destPath)
+	if err != nil {
+		a.showToast("导出失败: " + err.Error())
+		return
+	}
+	a.dialogExport = false
+	a.showToast(fmt.Sprintf("已成功导出 %d 篇笔记至 ZIP", count))
+}
+
+func (a *App) exportCurrentNoteMarkdown() {
+	if a.selectedNoteID == "" {
+		a.showToast("未选中笔记")
+		return
+	}
+	if !a.saveCurrentNote() {
+		return
+	}
+	title := a.currentNoteTitle
+	if title == "" {
+		title = "未命名笔记"
+	}
+	defaultName := fmt.Sprintf("%s.md", sanitizeExportFileName(title))
+	destPath, err := a.promptSaveFile(defaultName, "md", "Markdown 文档 (*.md)")
+	if err != nil || destPath == "" {
+		return
+	}
+	if err := a.store.ExportNoteMarkdown(a.selectedNoteID, destPath); err != nil {
+		a.showToast("导出失败: " + err.Error())
+		return
+	}
+	a.dialogExport = false
+	a.showToast("已成功导出 Markdown 文件")
+}
+
+func (a *App) backupDatabase() {
+	if !a.saveCurrentNote() {
+		return
+	}
+	defaultName := fmt.Sprintf("xiangying-backup-%s.sqlite", time.Now().Format("20060102-150405"))
+	destPath, err := a.promptSaveFile(defaultName, "sqlite", "SQLite 数据库 (*.sqlite)")
+	if err != nil || destPath == "" {
+		return
+	}
+	if err := a.store.BackupDatabase(destPath); err != nil {
+		a.showToast("备份失败: " + err.Error())
+		return
+	}
+	a.dialogExport = false
+	a.showToast("数据库快照备份成功")
+}
+
+func sanitizeExportFileName(name string) string {
+	replacer := strings.NewReplacer(
+		"/", "_",
+		"\\", "_",
+		":", "_",
+		"*", "_",
+		"?", "_",
+		"\"", "_",
+		"<", "_",
+		">", "_",
+		"|", "_",
+	)
+	return strings.TrimSpace(replacer.Replace(name))
+}
+
+func (a *App) openBacklinks() {
+	if a.selectedNoteID == "" {
+		a.showToast("请先选择一篇笔记")
+		return
+	}
+	if !a.saveCurrentNote() {
+		return
+	}
+	items, err := a.store.GetBacklinks(a.selectedNoteID)
+	if err != nil {
+		a.showToast("读取反向链接失败")
+		return
+	}
+	a.backlinks = items
+	a.backlinksNoteID = a.selectedNoteID
+	a.dialogBacklinks = true
+}
+
+func (a *App) convertMentionToLink(sourceNoteID string) {
+	if a.backlinksNoteID == "" {
+		return
+	}
+	var targetTitle string
+	for _, n := range a.notes {
+		if n.ID == a.backlinksNoteID {
+			targetTitle = n.Title
+			break
+		}
+	}
+	if targetTitle == "" {
+		targetTitle = a.currentNoteTitle
+	}
+	if targetTitle == "" {
+		return
+	}
+
+	if err := a.store.ConvertMentionToLink(sourceNoteID, targetTitle); err != nil {
+		a.showToast("添加链接失败: " + err.Error())
+		return
+	}
+	items, err := a.store.GetBacklinks(a.backlinksNoteID)
+	if err == nil {
+		a.backlinks = items
+	}
+	a.showToast("已转换为双向链接")
 }
 
 func paragraphText(paragraph richtext.Paragraph) string {
@@ -471,7 +625,13 @@ func (a *App) currentViewTitle() string {
 }
 
 func (a *App) handleShortcuts(c *ui.Context) {
-	if a.dialogNewNotebook || a.dialogConfirmEmptyTrash {
+	if a.dialogNewNotebook || a.dialogConfirmEmptyTrash || a.dialogBacklinks || a.dialogExport {
+		if c.Shortcut(0, ui.KeyEscape) {
+			a.dialogNewNotebook = false
+			a.dialogConfirmEmptyTrash = false
+			a.dialogBacklinks = false
+			a.dialogExport = false
+		}
 		return
 	}
 	if a.showOutline && c.Shortcut(0, ui.KeyEscape) {
@@ -526,6 +686,10 @@ func (a *App) View(c *ui.Context) {
 			a.searchDue = time.Time{}
 			a.refreshDataWithMetadata(false)
 		}
+	}
+	if !a.saveDue.IsZero() && !c.Now().Before(a.saveDue) {
+		a.saveDue = time.Time{}
+		a.saveCurrentNote()
 	}
 	p := ResolvePalette(c)
 	c.SetTheme(p.buildTheme())

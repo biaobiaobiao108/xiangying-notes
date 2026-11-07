@@ -62,3 +62,13 @@ type TagCount struct {
 	Tag   string `json:"tag"`
 	Count int    `json:"count"`
 }
+
+// BacklinkItem represents a reference or mention from another note.
+type BacklinkItem struct {
+	NoteID       string    `json:"note_id"`
+	NoteTitle    string    `json:"note_title"`
+	NotebookName string    `json:"notebook_name"`
+	Snippet      string    `json:"snippet"`
+	IsLinked     bool      `json:"is_linked"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

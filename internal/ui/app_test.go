@@ -976,3 +976,173 @@ func TestEmptyNoteKeepsTitleAndBodyApart(t *testing.T) {
 		t.Fatalf("body should start on the empty paragraph: start=%d len=%d", bodyStart, text.Len())
 	}
 }
+
+func TestDebounceSave(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	note, err := store.CreateNote(app.notebooks[0].ID, "防抖原题", "初始正文")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.refreshData()
+	app.selectNote(note.ID)
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(100 * time.Millisecond)
+
+	if err := tt.Click("笔记正文"); err != nil {
+		t.Fatalf("failed to focus editor: %v", err)
+	}
+	tt.Type(" 新增输入")
+
+	if app.saveDue.IsZero() {
+		t.Fatal("expected saveDue to be scheduled after typing")
+	}
+
+	// Before 450ms expires, DB should not have the new content yet
+	storedNote, err := store.GetNote(note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(storedNote.ContentMarkdown, "新增输入") {
+		t.Fatal("content was written immediately without debouncing")
+	}
+
+	// Advance beyond debounce window
+	tt.Advance(500 * time.Millisecond)
+	storedNoteAfter, err := store.GetNote(note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(storedNoteAfter.ContentMarkdown, "新增输入") {
+		t.Fatalf("debounced content was not saved: %q", storedNoteAfter.ContentMarkdown)
+	}
+}
+
+func TestBacklinksDialog(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	nbID := app.notebooks[0].ID
+	targetTitle := "测试知识库"
+	targetNote, err := store.CreateNote(nbID, targetTitle, "知识库核心定义。")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.CreateNote(nbID, "引用的笔记", "这里引用了 [["+targetTitle+"]] 笔记。")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mentionNote, err := store.CreateNote(nbID, "提及的笔记", "这里提及了 "+targetTitle+" 未链接。")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app.refreshData()
+	app.selectNote(targetNote.ID)
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(100 * time.Millisecond)
+
+	// Open backlinks dialog
+	if err := tt.Click("反向链接"); err != nil {
+		t.Fatalf("failed to click backlinks button: %v", err)
+	}
+	tt.Frame()
+	if !app.dialogBacklinks {
+		t.Fatal("expected dialogBacklinks to be true")
+	}
+	if len(app.backlinks) != 2 {
+		t.Fatalf("expected 2 backlinks, got %d: %+v", len(app.backlinks), app.backlinks)
+	}
+
+	// Click add link button
+	if err := tt.Click("+ 添加链接"); err != nil {
+		t.Fatalf("failed to click add link: %v", err)
+	}
+	tt.Frame()
+
+	updatedMention, err := store.GetNote(mentionNote.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(updatedMention.ContentMarkdown, "[["+targetTitle+"]]") {
+		t.Fatalf("mention was not converted to link: %q", updatedMention.ContentMarkdown)
+	}
+
+	// Press escape to close
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if app.dialogBacklinks {
+		t.Fatal("expected dialogBacklinks to be closed on Escape")
+	}
+}
+
+func TestExportAndBackupDialog(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "test.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	exportTargetDir := filepath.Join(tmpDir, "exports")
+	_ = os.MkdirAll(exportTargetDir, 0755)
+
+	app.SetFileSaver(func(defaultName, ext, filterName string) (string, error) {
+		return filepath.Join(exportTargetDir, defaultName), nil
+	})
+
+	tt := ui.NewTester(app.View, 1120, 720)
+	tt.Advance(100 * time.Millisecond)
+
+	// Click sidebar export button
+	if err := tt.Click("导出与备份"); err != nil {
+		t.Fatalf("failed to click export in sidebar: %v", err)
+	}
+	tt.Frame()
+	if !app.dialogExport {
+		t.Fatal("expected dialogExport to be true")
+	}
+
+	// Test click export ZIP
+	if err := tt.Click("导出 ZIP"); err != nil {
+		t.Fatalf("failed to click export zip button: %v", err)
+	}
+	tt.Frame()
+	if app.dialogExport {
+		t.Fatal("expected dialogExport to close after export")
+	}
+
+	// Re-open and test backup sqlite
+	app.dialogExport = true
+	tt.Frame()
+	if err := tt.Click("备份数据库"); err != nil {
+		t.Fatalf("failed to click backup sqlite button: %v", err)
+	}
+	tt.Frame()
+	if app.dialogExport {
+		t.Fatal("expected dialogExport to close after backup")
+	}
+
+	// Verify files produced in exportTargetDir
+	entries, err := os.ReadDir(exportTargetDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("expected at least 2 exported files, got %d", len(entries))
+	}
+}

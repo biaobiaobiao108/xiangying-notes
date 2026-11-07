@@ -281,6 +281,39 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 				})
 		})
 
+		ui.Box(c).
+			Height(40).
+			Padding(0, 10).
+			BorderWidth(1, 0, 0, 0).
+			BorderColor(p.BorderSoft).
+			Center().
+			Children(func() {
+				btn := ui.Row(c).
+					Key("sidebar-export-backup").
+					FillWidth().
+					Height(30).
+					Padding(0, 8).
+					Radius(6).
+					AlignItems(ui.Center).
+					Gap(8).
+					Cursor(ui.CursorPointer)
+
+				fill := ui.Color{}
+				if btn.Hovered() {
+					fill = p.SurfaceHover
+				}
+				btn.Background(btn.AnimateColor("fill", fill, colorAnimation))
+				if btn.Clicked() {
+					a.dialogExport = true
+				}
+
+				btn.Children(func() {
+					ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
+						ui.Icon(c, assets.IconExport).FontSize(13).TextColor(p.Muted)
+					})
+					ui.Text(c, "导出与备份").FontSize(11.5).TextColor(p.InkSoft).Grow(1).SingleLine()
+				})
+			})
 	})
 }
 
