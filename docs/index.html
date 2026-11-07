@@ -956,40 +956,19 @@
           </div>
 
           <div class="split-figure">
-            <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 32px; box-shadow: var(--shadow-subtle);">
-              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700;">
-                  ⇋
-                </div>
-                <strong style="font-size: 16px;">数据导出与备份 · 隐藏彩蛋入口</strong>
-              </div>
-              <p style="font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 24px;">
-                保持日常界面不留一丝冗余干扰。只要在左上角应用图标轻轻连击五次，无论何时何地，你的所有数据都能以最开放的标准格式安全带走。
-              </p>
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
-                  <div>
-                    <strong style="font-size: 13px;">导出全部笔记 (ZIP)</strong>
-                    <div style="font-size: 11px; color: var(--muted);">按笔记本归类打包 Markdown 压缩包</div>
-                  </div>
-                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">开放通用</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
-                  <div>
-                    <strong style="font-size: 13px;">导出当前笔记 (.md)</strong>
-                    <div style="font-size: 11px; color: var(--muted);">保存为独立标准 Markdown</div>
-                  </div>
-                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">单篇带走</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--canvas); border-radius: 8px;">
-                  <div>
-                    <strong style="font-size: 13px;">备份 SQLite 热快照</strong>
-                    <div style="font-size: 11px; color: var(--muted);">原子合并生成干净的 .sqlite 备份</div>
-                  </div>
-                  <span style="font-size: 11.5px; font-weight: 600; color: var(--accent);">原子无损</span>
-                </div>
-              </div>
+            <div class="screenshot-frame">
+              <img
+                src="assets/screenshots/export-dialog-light.jpg"
+                alt="象映笔记数据导出与备份弹窗截图：连击图标5次呼出的彩蛋入口"
+                width="1280"
+                height="720"
+                loading="lazy"
+              />
             </div>
+            <figcaption class="figure-caption">
+              <strong>连击 5 次图标唤出 · 数据导出与热备份</strong>
+              <span>Markdown ZIP 打包 · 单篇 .md 导出 · SQLite 原生 VACUUM 热快照</span>
+            </figcaption>
           </div>
         </div>
       </section>

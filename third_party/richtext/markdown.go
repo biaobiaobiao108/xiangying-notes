@@ -402,13 +402,25 @@ func codeSpan(s string) string {
 // escapeMarkdown escapes what Markdown would read as marks.
 func escapeMarkdown(s string) string {
 	var b strings.Builder
-	for i, r := range s {
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '[' && i+1 < len(runes) && runes[i+1] == '[' {
+			b.WriteString("[[")
+			i++
+			continue
+		}
+		if r == ']' && i+1 < len(runes) && runes[i+1] == ']' {
+			b.WriteString("]]")
+			i++
+			continue
+		}
 		switch r {
 		case '\\', '*', '_', '`', '[', ']', '<', '~':
 			b.WriteByte('\\')
 		case '&':
 			// Not the start of an entity, as &amp; or &#38;.
-			if i+1 < len(s) && (s[i+1] == '#' || unicode.IsLetter(rune(s[i+1]))) {
+			if i+1 < len(runes) && (runes[i+1] == '#' || unicode.IsLetter(runes[i+1])) {
 				b.WriteByte('\\')
 			}
 		}
