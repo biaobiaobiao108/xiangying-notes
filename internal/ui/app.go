@@ -81,6 +81,8 @@ type App struct {
 	backlinksNoteID         string
 	dialogExport            bool
 	fileSaver               func(defaultName, ext, filterName string) (string, error)
+	logoClickCount          int
+	lastLogoClick           time.Time
 
 	pendingToast string
 }
@@ -321,6 +323,19 @@ func (a *App) saveCurrentNote() bool {
 func (a *App) scheduleSave(c *ui.Context) {
 	a.saveDue = c.Now().Add(450 * time.Millisecond)
 	c.After(450 * time.Millisecond)
+}
+
+func (a *App) onLogoClick(now time.Time) {
+	if a.lastLogoClick.IsZero() || now.Sub(a.lastLogoClick) > 2*time.Second {
+		a.logoClickCount = 1
+	} else {
+		a.logoClickCount++
+	}
+	a.lastLogoClick = now
+	if a.logoClickCount >= 5 {
+		a.logoClickCount = 0
+		a.dialogExport = true
+	}
 }
 
 // SetFileSaver configures the native file save dialog handler.

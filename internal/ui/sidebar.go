@@ -24,10 +24,24 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			Gap(9).
 			DragWindow().
 			Children(func() {
-				ui.Image(c, assets.AppIcon).
+				logo := ui.ButtonBase(c).
+					Key("brand-logo-btn").
+					Label("象映笔记图标").
 					Size(30, 30).
 					Radius(8).
-					Fit(ui.Cover)
+					Padding(0).
+					Background(ui.Color{}).
+					Border(0, ui.Color{}).
+					Cursor(ui.CursorPointer)
+				logo.Children(func() {
+					ui.Image(c, assets.AppIcon).
+						Size(30, 30).
+						Radius(8).
+						Fit(ui.Cover)
+				})
+				if logo.Clicked() {
+					a.onLogoClick(c.Now())
+				}
 
 				ui.Text(c, "象映笔记").FontSize(14).Bold().TextColor(p.Ink).Grow(1).SingleLine()
 
@@ -280,40 +294,6 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 					})
 				})
 		})
-
-		ui.Box(c).
-			Height(40).
-			Padding(0, 10).
-			BorderWidth(1, 0, 0, 0).
-			BorderColor(p.BorderSoft).
-			Center().
-			Children(func() {
-				btn := ui.Row(c).
-					Key("sidebar-export-backup").
-					FillWidth().
-					Height(30).
-					Padding(0, 8).
-					Radius(6).
-					AlignItems(ui.Center).
-					Gap(8).
-					Cursor(ui.CursorPointer)
-
-				fill := ui.Color{}
-				if btn.Hovered() {
-					fill = p.SurfaceHover
-				}
-				btn.Background(btn.AnimateColor("fill", fill, colorAnimation))
-				if btn.Clicked() {
-					a.dialogExport = true
-				}
-
-				btn.Children(func() {
-					ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-						ui.Icon(c, assets.IconExport).FontSize(13).TextColor(p.Muted)
-					})
-					ui.Text(c, "导出与备份").FontSize(11.5).TextColor(p.InkSoft).Grow(1).SingleLine()
-				})
-			})
 	})
 }
 

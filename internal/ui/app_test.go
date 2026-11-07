@@ -1108,13 +1108,20 @@ func TestExportAndBackupDialog(t *testing.T) {
 	tt := ui.NewTester(app.View, 1120, 720)
 	tt.Advance(100 * time.Millisecond)
 
-	// Click sidebar export button
-	if err := tt.Click("导出与备份"); err != nil {
-		t.Fatalf("failed to click export in sidebar: %v", err)
+	// Ensure the visible sidebar bottom entry is gone
+	if tt.HasText("导出与备份") {
+		t.Fatal("expected visible '导出与备份' entry to be removed from sidebar")
 	}
-	tt.Frame()
+
+	// Click the top app icon 5 times to trigger the hidden entry
+	for i := 0; i < 5; i++ {
+		if err := tt.Click("象映笔记图标"); err != nil {
+			t.Fatalf("failed to click brand logo at step %d: %v", i+1, err)
+		}
+		tt.Advance(100 * time.Millisecond)
+	}
 	if !app.dialogExport {
-		t.Fatal("expected dialogExport to be true")
+		t.Fatal("expected dialogExport to be true after 5 logo clicks")
 	}
 
 	// Test click export ZIP
