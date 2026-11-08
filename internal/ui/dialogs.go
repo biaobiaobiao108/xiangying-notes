@@ -38,7 +38,7 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 
 		panel.Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "新建笔记本").Font(Fonts.Heading).FontSize(18).FontWeight(700).TextColor(p.Ink).Grow(1)
+				ui.Text(c, "新建笔记本").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink).Grow(1)
 				close := ui.Button(c, "").
 					Key("dialog-close").
 					Label("关闭").
@@ -80,7 +80,7 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 
 			colors := []string{"#2d5342", "#b24330", "#2f5f8f", "#b38b3c", "#6e4e8f"}
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "颜色").FontSize(10).TextColor(p.Muted)
+				ui.Text(c, "颜色").FontSize(11).TextColor(p.Muted)
 				for _, hex := range colors {
 					colorValue := parseHexColor(hex, p.Accent)
 					selected := a.dialogNotebookColor == hex
@@ -156,7 +156,7 @@ func (a *App) renderEmptyTrashDialog(c *ui.Context, p Palette) {
 			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
 
 		panel.Children(func() {
-			ui.Text(c, "清空回收站").Font(Fonts.Heading).FontSize(18).FontWeight(700).TextColor(p.Ink)
+			ui.Text(c, "清空回收站").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink)
 			ui.Text(c, "回收站中的笔记将被永久删除，此操作无法撤销。").
 				FontSize(11.5).
 				LineHeight(1.6).
@@ -215,21 +215,13 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
 
 		panel.Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(9).Children(func() {
-				ui.Box(c).Size(26, 26).Radius(6).Background(p.AccentSoft).Center().Children(func() {
-					ui.Icon(c, assets.IconBacklinks).FontSize(13).TextColor(p.Accent)
-				})
-				ui.Text(c, "反向链接").Font(Fonts.Heading).FontSize(18).FontWeight(700).TextColor(p.Ink)
-				countPill := ui.Box(c).
-					Height(20).
-					Padding(0, 7).
-					Radius(10).
-					Background(p.Canvas).
-					Border(1, p.BorderSoft).
-					Center()
-				countPill.Children(func() {
-					ui.Text(c, fmt.Sprintf("%d", len(a.backlinks))).FontSize(10.5).FontWeight(600).TextColor(p.Muted)
-				})
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Text(c, "反向链接与提及").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink)
+				if count := len(a.backlinks); count > 0 {
+					ui.Text(c, fmt.Sprintf("(%d)", count)).
+						FontSize(12).
+						TextColor(p.Muted)
+				}
 
 				ui.Box(c).Grow(1)
 
@@ -253,11 +245,11 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 			if len(a.backlinks) == 0 {
 				ui.Column(c).
 					FillWidth().
-					Height(160).
+					Height(150).
 					Center().
 					Gap(8).
 					Children(func() {
-						ui.Icon(c, assets.IconLink).FontSize(24).TextColor(p.SoftMuted)
+						ui.Icon(c, assets.IconLink).FontSize(18).TextColor(p.SoftMuted)
 						ui.Text(c, "暂无反向链接或同名提及").FontSize(12.5).TextColor(p.Muted)
 						ui.Text(c, "在其他笔记中写入 [[当前笔记标题]] 即可在此建立双向引用").
 							FontSize(11).
@@ -268,20 +260,20 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 					MaxHeight(380).
 					FillWidth().
 					Children(func() {
-						ui.Column(c).FillWidth().Gap(10).Children(func() {
+						ui.Column(c).FillWidth().Gap(8).Children(func() {
 							for idx, item := range a.backlinks {
 								itemKey := fmt.Sprintf("backlink-%d-%s", idx, item.NoteID)
-								card := ui.Column(c).
+								row := ui.Column(c).
 									Key(itemKey).
 									FillWidth().
-									Padding(10, 14).
+									Padding(11, 14).
 									Radius(8).
-									Gap(7).
+									Gap(6).
 									Background(p.Canvas).
 									Border(1, p.BorderSoft)
 
-								card.Children(func() {
-									ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+								row.Children(func() {
+									ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 										titleBtn := ui.Button(c, "").
 											Key(itemKey+"-title").
 											Background(ui.Color{}).
@@ -304,46 +296,20 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 											a.selectNote(item.NoteID)
 										}
 
+										notebookName := item.NotebookName
+										if notebookName == "" {
+											notebookName = "收件箱"
+										}
+										ui.Text(c, "·  "+notebookName).FontSize(11).TextColor(p.Muted).SingleLine()
+										ui.Text(c, "·  "+markdown.RelativeDate(item.UpdatedAt)).FontSize(10.5).TextColor(p.SoftMuted).SingleLine()
+
 										ui.Box(c).Grow(1)
 
-										ui.Box(c).
-											Padding(2, 6).
-											Radius(4).
-											Background(p.Surface).
-											Border(1, p.BorderSoft).
-											Children(func() {
-												ui.Text(c, item.NotebookName).FontSize(10).TextColor(p.Muted)
+										if item.IsLinked {
+											ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+												ui.Icon(c, assets.IconLink).FontSize(11).TextColor(p.Accent)
+												ui.Text(c, "已链接").FontSize(11).Bold().TextColor(p.Accent)
 											})
-
-										if item.IsLinked {
-											ui.Row(c).
-												Padding(2, 6).
-												Radius(4).
-												Gap(4).
-												AlignItems(ui.Center).
-												Background(p.AccentSoft).
-												Children(func() {
-													ui.Icon(c, assets.IconLink).FontSize(10.5).TextColor(p.Accent)
-													ui.Text(c, "已链接").FontSize(10).Bold().TextColor(p.Accent)
-												})
-										} else {
-											ui.Row(c).
-												Padding(2, 6).
-												Radius(4).
-												Gap(3).
-												AlignItems(ui.Center).
-												Background(p.Surface).
-												Border(1, p.BorderSoft).
-												Children(func() {
-													ui.Text(c, "提及").FontSize(10).TextColor(p.QuietInk)
-												})
-										}
-
-										ui.Text(c, markdown.RelativeDate(item.UpdatedAt)).
-											FontSize(10).
-											TextColor(p.SoftMuted)
-
-										if item.IsLinked {
 											jump := ui.Button(c, "").
 												Key(itemKey+"-jump").
 												Width(22).
@@ -363,10 +329,10 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 										} else {
 											addLink := ui.Button(c, "+ 添加链接").
 												Key(itemKey+"-addlink").
-												Height(22).
-												Padding(0, 7).
-												Radius(4).
-												FontSize(10.5).
+												Height(24).
+												Padding(0, 9).
+												Radius(5).
+												FontSize(11).
 												TextColor(p.Accent).
 												Background(p.Surface).
 												Border(1, p.Border)
@@ -380,17 +346,14 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 									})
 
 									if item.Snippet != "" {
-										ui.Box(c).
-											FillWidth().
-											Padding(6, 10).
-											Radius(6).
-											Background(p.Surface).
-											Children(func() {
-												ui.Text(c, item.Snippet).
-													FontSize(11.5).
-													LineHeight(1.5).
-													TextColor(p.InkSoft)
-											})
+										ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Stretch).Margin(3, 0, 0, 0).Children(func() {
+											ui.Box(c).Width(2).Radius(1).Background(p.Accent.Alpha(0.35))
+											ui.Text(c, item.Snippet).
+												FontSize(11.5).
+												LineHeight(1.5).
+												TextColor(p.InkSoft).
+												Grow(1)
+										})
 									}
 								})
 							}
@@ -410,20 +373,17 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 		backdrop.Background(p.Backdrop)
 		animateDialog(panel)
 		panel.
-			Width(440).
+			Width(480).
 			Padding(22, 24).
-			Gap(16).
+			Gap(14).
 			Radius(12).
 			Background(p.Surface).
 			Border(1, p.Border).
 			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
 
 		panel.Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Box(c).Size(26, 26).Radius(6).Background(p.AccentSoft).Center().Children(func() {
-					ui.Icon(c, assets.IconExport).FontSize(13).TextColor(p.Accent)
-				})
-				ui.Text(c, "数据导出与备份").Font(Fonts.Heading).FontSize(18).FontWeight(700).TextColor(p.Ink).Grow(1)
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "数据导出与备份").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink).Grow(1)
 				close := ui.Button(c, "").
 					Key("export-dialog-close").
 					Label("关闭").
@@ -441,28 +401,27 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 				}
 			})
 
-			ui.Text(c, "将笔记与数据库留存为开放格式，所有数据均保留在你的本地设备上。").
-				FontSize(11.5).
-				LineHeight(1.5).
-				TextColor(p.Muted)
-
-			ui.Column(c).FillWidth().Gap(10).Children(func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
 				a.renderExportCard(c, p,
 					"export-all-zip",
 					assets.IconFolder,
-					"导出全部笔记 (ZIP)",
-					"按笔记本结构归档所有笔记并打包为 Markdown 压缩包",
+					"全部笔记 (ZIP)",
+					"打包所有笔记本为 Markdown 压缩归档",
 					"导出 ZIP",
 					func() { a.exportAllNotesZip() },
 					false,
 				)
 
 				canExportCurrent := a.selectedNoteID != ""
+				currentDesc := "保存当前选中的笔记为标准 Markdown 文档"
+				if !canExportCurrent {
+					currentDesc = "当前未选中任何笔记"
+				}
 				a.renderExportCard(c, p,
 					"export-current-md",
 					assets.IconAllNotes,
-					"导出当前笔记 (.md)",
-					"将正在查看的笔记保存为独立的标准 Markdown 文档",
+					"当前笔记 (.md)",
+					currentDesc,
 					"导出 Markdown",
 					func() { a.exportCurrentNoteMarkdown() },
 					!canExportCurrent,
@@ -471,8 +430,8 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 				a.renderExportCard(c, p,
 					"backup-sqlite",
 					assets.IconHistory,
-					"备份 SQLite 数据库快照",
-					"基于 SQLite 原生热快照技术生成完整无损的离线数据库文件",
+					"数据库快照 (.db)",
+					"导出完整无损的 SQLite 数据库离线备份",
 					"备份数据库",
 					func() { a.backupDatabase() },
 					false,
@@ -486,7 +445,7 @@ func (a *App) renderExportCard(c *ui.Context, p Palette, key string, icon *ui.SV
 	row := ui.Row(c).
 		Key(key).
 		FillWidth().
-		Padding(11, 14).
+		Padding(12, 14).
 		Radius(8).
 		Gap(12).
 		AlignItems(ui.Center).
@@ -494,33 +453,41 @@ func (a *App) renderExportCard(c *ui.Context, p Palette, key string, icon *ui.SV
 		Border(1, p.BorderSoft)
 
 	row.Children(func() {
-		ui.Box(c).Size(32, 32).Radius(6).Background(p.Surface).Border(1, p.BorderSoft).Center().Children(func() {
-			ui.Icon(c, icon).FontSize(15).TextColor(p.Accent)
-		})
+		ui.Icon(c, icon).FontSize(16).TextColor(conditional(disabled, p.SoftMuted, p.QuietInk))
 
 		ui.Column(c).Grow(1).Gap(2).Children(func() {
-			ui.Text(c, title).FontSize(13).Bold().TextColor(conditional(disabled, p.SoftMuted, p.Ink))
-			ui.Text(c, desc).FontSize(10.5).TextColor(p.Muted).SingleLine()
+			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(conditional(disabled, p.SoftMuted, p.Ink))
+			ui.Text(c, desc).FontSize(11).TextColor(p.Muted).SingleLine()
 		})
 
 		btn := ui.Button(c, btnLabel).
 			Key(key+"-btn").
 			Height(28).
-			Padding(0, 11).
+			Padding(0, 12).
 			Radius(6).
 			FontSize(11).
-			Bold().
-			TextColor(conditional(disabled, p.SoftMuted, p.OnAccent)).
-			Background(conditional(disabled, p.SurfaceHover, p.Accent)).
-			Border(0, ui.Color{})
+			Bold()
 
-		if !disabled {
-			if btn.Hovered() {
-				btn.Background(p.AccentDark)
-			}
-			if btn.Clicked() {
-				onClick()
-			}
+		hovered := btn.Hovered()
+		textColor := p.Ink
+		bgColor := p.Surface
+		borderColor := p.Border
+		if disabled {
+			textColor = p.SoftMuted
+			bgColor = p.SurfaceHover
+			borderColor = p.BorderSoft
+		} else if hovered {
+			textColor = p.Accent
+			bgColor = p.SurfaceHover
+			borderColor = p.Accent.Alpha(0.35)
+		}
+
+		btn.TextColor(textColor).
+			Background(btn.AnimateColor("fill", bgColor, colorAnimation)).
+			Border(1, borderColor)
+
+		if !disabled && btn.Clicked() {
+			onClick()
 		}
 	})
 }

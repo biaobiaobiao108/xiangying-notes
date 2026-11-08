@@ -183,16 +183,20 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 					FontWeight(600).
 					TextColor(p.Ink).
 					MaxWidth(360).
-					Grow(1).
 					Shrink(1).
 					MinWidth(0).
 					SingleLine().
 					Ellipsis("…").
 					Tooltip(title)
 				if currentNote != nil {
-					ui.Text(c, "·").FontSize(9).TextColor(p.SoftMuted).Shrink(0).SingleLine()
-					ui.Text(c, markdown.RelativeDate(currentNote.UpdatedAt)).FontSize(10.5).TextColor(p.SoftMuted).Shrink(0).SingleLine()
+					ui.Text(c, markdown.RelativeDate(currentNote.UpdatedAt)).
+						FontSize(10.5).
+						TextColor(p.SoftMuted).
+						Margin(0, 0, 0, 4).
+						Shrink(0).
+						SingleLine()
 				}
+				ui.Box(c).Grow(1)
 			})
 
 			ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {

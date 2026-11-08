@@ -16,8 +16,6 @@ const (
 	cardPagePad      = float32(24)
 	cardPadV         = float32(17)
 	cardPadH         = float32(18)
-	cardEyebrowH     = float32(13)
-	cardTitleGap     = float32(11)
 	cardTitleSize    = float32(16)
 	cardTitleLine    = cardTitleSize * 1.45
 	cardPreviewGap   = float32(7)
@@ -228,7 +226,7 @@ func estimateCardHeight(c *ui.Context, note model.Note, width float32, lines car
 		previewLines = measuredTextLines(c, note.Preview, textWidth, lines.preview, cardPreviewSize, 400, "", 4)
 	}
 
-	height := 2*cardPadV + cardBorder + cardEyebrowH + cardTitleGap + float32(titleLines)*cardTitleLine
+	height := 2*cardPadV + cardBorder + float32(titleLines)*cardTitleLine
 	if note.Preview != "" {
 		height += cardPreviewGap + float32(previewLines)*cardPreviewLine + cardPreviewEnd
 	} else {
@@ -307,25 +305,20 @@ func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidt
 		}
 	}
 
-	eyebrowWidth := card.AnimateTo("eyebrow", conditional(hovered, float32(38), float32(20)), ui.Snappy)
-
 	card.Children(func() {
-		ui.Row(c).Height(cardEyebrowH).AlignItems(ui.Center).Gap(8).Children(func() {
-			ui.Box(c).Width(eyebrowWidth).Height(2).Radius(1).Background(p.Accent)
-			ui.Box(c).Grow(1)
+		ui.Row(c).AlignItems(ui.Start).Gap(8).Children(func() {
+			ui.Text(c, note.Title).
+				Font(Fonts.Heading).
+				FontSize(16).
+				FontWeight(700).
+				LineHeight(1.45).
+				TextColor(p.Ink).
+				MaxLines(2).
+				Grow(1)
 			if note.IsFavorite {
-				ui.Icon(c, assets.IconStarFilled).FontSize(11).TextColor(p.Star)
+				ui.Icon(c, assets.IconStarFilled).FontSize(11).TextColor(p.Star).Margin(2, 0, 0, 0)
 			}
 		})
-
-		ui.Text(c, note.Title).
-			Font(Fonts.Heading).
-			FontSize(16).
-			FontWeight(700).
-			LineHeight(1.45).
-			TextColor(p.Ink).
-			MaxLines(2).
-			Margin(11, 0, 0, 0)
 
 		if note.Preview != "" {
 			ui.Text(c, note.Preview).

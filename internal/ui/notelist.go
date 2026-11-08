@@ -81,11 +81,6 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 					if empty.Clicked() {
 						a.dialogConfirmEmptyTrash = true
 					}
-				} else {
-					ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-						ui.Box(c).Size(4, 4).Radius(2).Background(p.Accent.Alpha(0.6))
-						ui.Text(c, "最近更新").FontSize(10).TextColor(p.SoftMuted)
-					})
 				}
 			})
 
