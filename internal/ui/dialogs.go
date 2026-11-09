@@ -28,27 +28,27 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 		backdrop.Background(p.Backdrop)
 		animateDialog(panel)
 		panel.
-			Width(372).
-			Padding(24).
-			Gap(16).
-			Radius(12).
+			Width(360).
+			Padding(20, 22).
+			Gap(14).
+			Radius(10).
 			Background(p.Surface).
 			Border(1, p.Border).
-			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
+			Shadow(0, 16, 44, 0, ui.RGBA(18, 23, 19, 0.20))
 
 		panel.Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "新建笔记本").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink).Grow(1)
+				ui.Text(c, "新建笔记本").Font(Fonts.Heading).FontSize(TypeTitle).FontWeight(700).TextColor(p.Ink).Grow(1)
 				close := ui.Button(c, "").
 					Key("dialog-close").
 					Label("关闭").
-					Width(24).
-					Height(24).
+					Width(22).
+					Height(22).
 					Padding(0).
-					Radius(5).
+					Radius(4).
 					Border(0, ui.Color{})
 				close.Children(func() {
-					ui.Icon(c, assets.IconClose).FontSize(12).TextColor(p.Muted)
+					ui.Icon(c, assets.IconClose).FontSize(11).TextColor(p.Muted)
 				})
 				close.Background(close.AnimateColor("fill", conditional(close.Hovered(), p.SurfaceHover, ui.Color{}), colorAnimation))
 				if close.Clicked() {
@@ -57,9 +57,9 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 			})
 
 			field := ui.Row(c).
-				Height(40).
-				Padding(0, 11).
-				Radius(8).
+				Height(36).
+				Padding(0, 10).
+				Radius(6).
 				Border(1, p.Border).
 				Background(p.Canvas)
 
@@ -68,7 +68,7 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 				input = ui.TextInputBase(c, &a.dialogNotebookName).
 					Placeholder("笔记本名称").
 					AutoFocus().
-					FontSize(12.5).
+					FontSize(TypeBodyPrimary).
 					TextColor(p.Ink).
 					FillWidth()
 			})
@@ -78,16 +78,16 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 			}
 			field.Border(1, field.AnimateColor("border", borderColor, colorAnimation))
 
-			colors := []string{"#2d5342", "#b24330", "#2f5f8f", "#b38b3c", "#6e4e8f"}
+			colors := []string{"#2b5340", "#b53d2a", "#2f5f8f", "#b8842e", "#6e4e8f"}
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "颜色").FontSize(11).TextColor(p.Muted)
+				ui.Text(c, "颜色").FontSize(TypeMeta).TextColor(p.Muted)
 				for _, hex := range colors {
 					colorValue := parseHexColor(hex, p.Accent)
 					selected := a.dialogNotebookColor == hex
 					swatch := ui.Box(c).
 						Key("swatch-"+hex).
-						Size(21, 21).
-						Radius(10.5).
+						Size(20, 20).
+						Radius(10).
 						Background(colorValue).
 						Cursor(ui.CursorPointer)
 					if selected {
@@ -100,7 +100,7 @@ func (a *App) renderNewNotebookDialog(c *ui.Context, p Palette) {
 					}
 					scale := float32(1)
 					if swatch.Hovered() {
-						scale = 1.12
+						scale = 1.10
 					}
 					swatch.AnimatePose(ui.Pose{Scale: scale}, ui.Snappy)
 				}
@@ -147,19 +147,19 @@ func (a *App) renderEmptyTrashDialog(c *ui.Context, p Palette) {
 		backdrop.Background(p.Backdrop)
 		animateDialog(panel)
 		panel.
-			Width(356).
-			Padding(24).
-			Gap(14).
-			Radius(12).
+			Width(340).
+			Padding(20, 22).
+			Gap(12).
+			Radius(10).
 			Background(p.Surface).
 			Border(1, p.Border).
-			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
+			Shadow(0, 16, 44, 0, ui.RGBA(18, 23, 19, 0.20))
 
 		panel.Children(func() {
-			ui.Text(c, "清空回收站").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink)
+			ui.Text(c, "清空回收站").Font(Fonts.Heading).FontSize(TypeTitle).FontWeight(700).TextColor(p.Ink)
 			ui.Text(c, "回收站中的笔记将被永久删除，此操作无法撤销。").
-				FontSize(11.5).
-				LineHeight(1.6).
+				FontSize(TypeBodySecondary).
+				LineHeight(1.5).
 				TextColor(p.Muted)
 
 			ui.Row(c).Justify(ui.End).Gap(8).Margin(4, 0, 0, 0).Children(func() {
@@ -169,9 +169,9 @@ func (a *App) renderEmptyTrashDialog(c *ui.Context, p Palette) {
 
 				confirm := ui.Button(c, "").
 					Key("confirm-empty").
-					Height(32).
-					Padding(0, 14).
-					Radius(7).
+					Height(30).
+					Padding(0, 13).
+					Radius(6).
 					Border(0, ui.Color{})
 				hovered := confirm.Hovered()
 				fill := p.Danger
@@ -180,7 +180,7 @@ func (a *App) renderEmptyTrashDialog(c *ui.Context, p Palette) {
 				}
 				confirm.Background(confirm.AnimateColor("fill", fill, colorAnimation))
 				confirm.Children(func() {
-					ui.Text(c, "确认清空").FontSize(12).Bold().TextColor(p.OnAccent)
+					ui.Text(c, "确认清空").FontSize(TypeBodySecondary).Bold().TextColor(p.OnAccent)
 				})
 				if confirm.Clicked() {
 					if err := a.store.EmptyTrash(); err != nil {
@@ -206,20 +206,20 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 		backdrop.Background(p.Backdrop)
 		animateDialog(panel)
 		panel.
-			Width(580).
-			Padding(22, 24).
-			Gap(16).
-			Radius(12).
+			Width(560).
+			Padding(20, 22).
+			Gap(14).
+			Radius(10).
 			Background(p.Surface).
 			Border(1, p.Border).
-			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
+			Shadow(0, 16, 44, 0, ui.RGBA(18, 23, 19, 0.20))
 
 		panel.Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Text(c, "反向链接与提及").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink)
+				ui.Text(c, "反向链接与提及").Font(Fonts.Heading).FontSize(TypeTitle).FontWeight(700).TextColor(p.Ink)
 				if count := len(a.backlinks); count > 0 {
 					ui.Text(c, fmt.Sprintf("(%d)", count)).
-						FontSize(12).
+						FontSize(TypeBodySecondary).
 						TextColor(p.Muted)
 				}
 
@@ -228,13 +228,13 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 				close := ui.Button(c, "").
 					Key("backlinks-dialog-close").
 					Label("关闭").
-					Width(24).
-					Height(24).
+					Width(22).
+					Height(22).
 					Padding(0).
-					Radius(5).
+					Radius(4).
 					Border(0, ui.Color{})
 				close.Children(func() {
-					ui.Icon(c, assets.IconClose).FontSize(12).TextColor(p.Muted)
+					ui.Icon(c, assets.IconClose).FontSize(11).TextColor(p.Muted)
 				})
 				close.Background(close.AnimateColor("fill", conditional(close.Hovered(), p.SurfaceHover, ui.Color{}), colorAnimation))
 				if close.Clicked() {
@@ -245,14 +245,14 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 			if len(a.backlinks) == 0 {
 				ui.Column(c).
 					FillWidth().
-					Height(150).
+					Height(140).
 					Center().
 					Gap(8).
 					Children(func() {
 						ui.Icon(c, assets.IconLink).FontSize(18).TextColor(p.SoftMuted)
-						ui.Text(c, "暂无反向链接或同名提及").FontSize(12.5).TextColor(p.Muted)
+						ui.Text(c, "暂无反向链接或同名提及").FontSize(TypeBodyPrimary).TextColor(p.Muted)
 						ui.Text(c, "在其他笔记中写入 [[当前笔记标题]] 即可在此建立双向引用").
-							FontSize(11).
+							FontSize(TypeMeta).
 							TextColor(p.SoftMuted)
 					})
 			} else {
@@ -260,17 +260,21 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 					MaxHeight(380).
 					FillWidth().
 					Children(func() {
-						ui.Column(c).FillWidth().Gap(8).Children(func() {
+						ui.Column(c).FillWidth().Children(func() {
 							for idx, item := range a.backlinks {
 								itemKey := fmt.Sprintf("backlink-%d-%s", idx, item.NoteID)
 								row := ui.Column(c).
 									Key(itemKey).
 									FillWidth().
-									Padding(11, 14).
-									Radius(8).
-									Gap(6).
-									Background(p.Canvas).
-									Border(1, p.BorderSoft)
+									Padding(9, 10).
+									Radius(6).
+									Gap(5).
+									BorderWidth(0, 0, 1, 0).
+									BorderColor(p.BorderSoft)
+
+								if row.Hovered() {
+									row.Background(p.SurfaceHover)
+								}
 
 								row.Children(func() {
 									ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
@@ -286,7 +290,7 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 										}
 										titleBtn.Children(func() {
 											ui.Text(c, item.NoteTitle).
-												FontSize(13).
+												FontSize(TypeBodyPrimary).
 												Bold().
 												TextColor(titleColor).
 												SingleLine()
@@ -300,27 +304,27 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 										if notebookName == "" {
 											notebookName = "收件箱"
 										}
-										ui.Text(c, "·  "+notebookName).FontSize(11).TextColor(p.Muted).SingleLine()
-										ui.Text(c, "·  "+markdown.RelativeDate(item.UpdatedAt)).FontSize(10.5).TextColor(p.SoftMuted).SingleLine()
+										ui.Text(c, "·  "+notebookName).FontSize(TypeCaption).TextColor(p.Muted).SingleLine()
+										ui.Text(c, "·  "+markdown.RelativeDate(item.UpdatedAt)).FontSize(TypeCaption).TextColor(p.SoftMuted).SingleLine()
 
 										ui.Box(c).Grow(1)
 
 										if item.IsLinked {
 											ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 												ui.Icon(c, assets.IconLink).FontSize(11).TextColor(p.Accent)
-												ui.Text(c, "已链接").FontSize(11).Bold().TextColor(p.Accent)
+												ui.Text(c, "已链接").FontSize(TypeMeta).Bold().TextColor(p.Accent)
 											})
 											jump := ui.Button(c, "").
 												Key(itemKey+"-jump").
-												Width(22).
-												Height(22).
+												Width(20).
+												Height(20).
 												Padding(0).
 												Radius(4).
 												Background(ui.Color{}).
 												Border(0, ui.Color{}).
 												Tooltip("打开此笔记")
 											jump.Children(func() {
-												ui.Icon(c, assets.IconExpand).FontSize(11).TextColor(p.Muted)
+												ui.Icon(c, assets.IconExpand).FontSize(10.5).TextColor(p.Muted)
 											})
 											if jump.Clicked() {
 												a.dialogBacklinks = false
@@ -331,8 +335,8 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 												Key(itemKey+"-addlink").
 												Height(24).
 												Padding(0, 9).
-												Radius(5).
-												FontSize(11).
+												Radius(4).
+												FontSize(TypeMeta).
 												TextColor(p.Accent).
 												Background(p.Surface).
 												Border(1, p.Border)
@@ -346,10 +350,10 @@ func (a *App) renderBacklinksDialog(c *ui.Context, p Palette) {
 									})
 
 									if item.Snippet != "" {
-										ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Stretch).Margin(3, 0, 0, 0).Children(func() {
+										ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Stretch).Margin(2, 0, 0, 0).Children(func() {
 											ui.Box(c).Width(2).Radius(1).Background(p.Accent.Alpha(0.35))
 											ui.Text(c, item.Snippet).
-												FontSize(11.5).
+												FontSize(TypeBodySecondary).
 												LineHeight(1.5).
 												TextColor(p.InkSoft).
 												Grow(1)
@@ -373,27 +377,27 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 		backdrop.Background(p.Backdrop)
 		animateDialog(panel)
 		panel.
-			Width(480).
-			Padding(22, 24).
-			Gap(14).
-			Radius(12).
+			Width(460).
+			Padding(20, 22).
+			Gap(12).
+			Radius(10).
 			Background(p.Surface).
 			Border(1, p.Border).
-			Shadow(0, 22, 60, 0, ui.RGBA(18, 23, 19, 0.22))
+			Shadow(0, 16, 44, 0, ui.RGBA(18, 23, 19, 0.20))
 
 		panel.Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "数据导出与备份").Font(Fonts.Heading).FontSize(17).FontWeight(700).TextColor(p.Ink).Grow(1)
+				ui.Text(c, "数据导出与备份").Font(Fonts.Heading).FontSize(TypeTitle).FontWeight(700).TextColor(p.Ink).Grow(1)
 				close := ui.Button(c, "").
 					Key("export-dialog-close").
 					Label("关闭").
-					Width(24).
-					Height(24).
+					Width(22).
+					Height(22).
 					Padding(0).
-					Radius(5).
+					Radius(4).
 					Border(0, ui.Color{})
 				close.Children(func() {
-					ui.Icon(c, assets.IconClose).FontSize(12).TextColor(p.Muted)
+					ui.Icon(c, assets.IconClose).FontSize(11).TextColor(p.Muted)
 				})
 				close.Background(close.AnimateColor("fill", conditional(close.Hovered(), p.SurfaceHover, ui.Color{}), colorAnimation))
 				if close.Clicked() {
@@ -401,8 +405,8 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 				}
 			})
 
-			ui.Column(c).FillWidth().Gap(8).Children(func() {
-				a.renderExportCard(c, p,
+			ui.Column(c).FillWidth().Children(func() {
+				a.renderExportRow(c, p,
 					"export-all-zip",
 					assets.IconFolder,
 					"全部笔记 (ZIP)",
@@ -417,7 +421,7 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 				if !canExportCurrent {
 					currentDesc = "当前未选中任何笔记"
 				}
-				a.renderExportCard(c, p,
+				a.renderExportRow(c, p,
 					"export-current-md",
 					assets.IconAllNotes,
 					"当前笔记 (.md)",
@@ -427,7 +431,7 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 					!canExportCurrent,
 				)
 
-				a.renderExportCard(c, p,
+				a.renderExportRow(c, p,
 					"backup-sqlite",
 					assets.IconHistory,
 					"数据库快照 (.db)",
@@ -441,31 +445,35 @@ func (a *App) renderExportDialog(c *ui.Context, p Palette) {
 	})
 }
 
-func (a *App) renderExportCard(c *ui.Context, p Palette, key string, icon *ui.SVG, title, desc, btnLabel string, onClick func(), disabled bool) {
+func (a *App) renderExportRow(c *ui.Context, p Palette, key string, icon *ui.SVG, title, desc, btnLabel string, onClick func(), disabled bool) {
 	row := ui.Row(c).
 		Key(key).
 		FillWidth().
-		Padding(12, 14).
-		Radius(8).
+		Padding(10, 8).
+		Radius(6).
 		Gap(12).
 		AlignItems(ui.Center).
-		Background(p.Canvas).
-		Border(1, p.BorderSoft)
+		BorderWidth(0, 0, 1, 0).
+		BorderColor(p.BorderSoft)
+
+	if row.Hovered() && !disabled {
+		row.Background(p.SurfaceHover)
+	}
 
 	row.Children(func() {
-		ui.Icon(c, icon).FontSize(16).TextColor(conditional(disabled, p.SoftMuted, p.QuietInk))
+		ui.Icon(c, icon).FontSize(15).TextColor(conditional(disabled, p.SoftMuted, p.QuietInk))
 
 		ui.Column(c).Grow(1).Gap(2).Children(func() {
-			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(conditional(disabled, p.SoftMuted, p.Ink))
-			ui.Text(c, desc).FontSize(11).TextColor(p.Muted).SingleLine()
+			ui.Text(c, title).FontSize(TypeBodyPrimary).FontWeight(600).TextColor(conditional(disabled, p.SoftMuted, p.Ink))
+			ui.Text(c, desc).FontSize(TypeMeta).TextColor(p.Muted).SingleLine()
 		})
 
 		btn := ui.Button(c, btnLabel).
 			Key(key+"-btn").
-			Height(28).
-			Padding(0, 12).
-			Radius(6).
-			FontSize(11).
+			Height(26).
+			Padding(0, 11).
+			Radius(5).
+			FontSize(TypeMeta).
 			Bold()
 
 		hovered := btn.Hovered()
@@ -499,6 +507,6 @@ func animateDialog(panel ui.Element) {
 	}, ui.KeyframeOptions{})
 	panel.
 		Opacity(progress).
-		Scale(0.972+0.028*progress, 0.972+0.028*progress).
+		Scale(0.975+0.025*progress, 0.975+0.025*progress).
 		TransformOrigin(0.5, 0.5)
 }
