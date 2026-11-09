@@ -44,50 +44,47 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 		}
 
 		ui.Row(c).Grow(1).Shrink(1).FillWidth().AlignItems(ui.Stretch).Children(func() {
-			ui.Box(c).Grow(1).FillHeight().Children(func() {
-				ui.Column(c).
-					FillWidth().
-					FillHeight().
-					Padding(18, 6, 10, leftPad).
-					Children(func() {
-						ui.Box(c).Grow(1).FillWidth().Clip().Background(p.Editor).Children(func() {
-							editor := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
-								Label:             "笔记正文",
-								Placeholder:       "开始记录你的想法…",
-								ReadOnly:          a.view == model.ViewTrash,
-								CustomContextMenu: true,
-								Font: ui.Font{
-									Family:     Fonts.Body,
-									Size:       16.5,
-									Weight:     400,
-									LineHeight: 1.72,
-								},
-								Theme: a.editorTheme(c, p, textInset),
-							}).Fill().
-								Background(ui.Color{}).
-								Border(0, ui.Color{}).
-								Radius(0).
-								OnShortcut(ui.Cmd, ui.KeyV, func() {
-									a.pasteClipboard(c.Services())
-								})
-
-							if k := overlay.ContextMenu(c, editor, overlay.DropdownMenuProps{
-								Items: a.buildEditorMenuItems(),
-							}); k != "" {
-								a.handleEditorContextAction(c, k)
-							}
-
-							if editor.Changed() {
-								a.scheduleSave(c)
-							}
-							if a.focusEditor {
-								editor.Focus()
-								a.focusEditor = false
-							}
-							a.renderEditorEdgeFades(c, p)
+			ui.Column(c).Grow(1).FillHeight().Children(func() {
+				// Writing canvas
+				ui.Box(c).Grow(1).FillWidth().Clip().Background(p.Editor).Padding(16, 6, 0, leftPad).Children(func() {
+					editor := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
+						Label:             "笔记正文",
+						Placeholder:       "开始记录你的想法…",
+						ReadOnly:          a.view == model.ViewTrash,
+						CustomContextMenu: true,
+						Font: ui.Font{
+							Family:     Fonts.Body,
+							Size:       16.5,
+							Weight:     400,
+							LineHeight: 1.72,
+						},
+						Theme: a.editorTheme(c, p, textInset),
+					}).Fill().
+						Background(ui.Color{}).
+						Border(0, ui.Color{}).
+						Radius(0).
+						OnShortcut(ui.Cmd, ui.KeyV, func() {
+							a.pasteClipboard(c.Services())
 						})
-					})
-				a.renderEditorFloatingMeta(c, p)
+
+					if k := overlay.ContextMenu(c, editor, overlay.DropdownMenuProps{
+						Items: a.buildEditorMenuItems(),
+					}); k != "" {
+						a.handleEditorContextAction(c, k)
+					}
+
+					if editor.Changed() {
+						a.scheduleSave(c)
+					}
+					if a.focusEditor {
+						editor.Focus()
+						a.focusEditor = false
+					}
+					a.renderEditorEdgeFades(c, p)
+				})
+
+				// Dedicated bottom status bar (un-obscured text area)
+				a.renderEditorStatusBar(c, p)
 			})
 
 			if floatingOutline {
@@ -145,7 +142,7 @@ func normalizeClipboardText(s string) string {
 func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.Note, rightPad int) {
 	ui.Row(c).
 		Height(topBarHeight(c)).
-		Padding(0, float32(rightPad), 0, 18).
+		Padding(0, float32(rightPad), 0, 16).
 		AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).
 		BorderColor(p.BorderSoft).
@@ -165,7 +162,7 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 				ui.Box(c).Width(4)
 			}
 
-			ui.Row(c).AlignItems(ui.Center).Gap(7).Grow(1).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(6).Grow(1).Children(func() {
 				notebookName := "收件箱"
 				notebookColor := p.Accent
 				if currentNote != nil {
@@ -182,26 +179,29 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 				if a.selectedNoteID == "" {
 					notebookName = "象映笔记"
 				}
-				ui.Box(c).Size(5, 5).Radius(3).Background(notebookColor).Tooltip(notebookName)
+				ui.Box(c).Size(5, 5).Radius(2.5).Background(notebookColor).Tooltip(notebookName)
+				ui.Text(c, notebookName).FontSize(TypeMeta).TextColor(p.Muted).SingleLine()
+				ui.Text(c, "/").FontSize(TypeCaption).TextColor(p.SoftMuted)
+
 				title := a.currentNoteTitle
 				if title == "" {
 					title = "象映笔记"
 				}
 				ui.Text(c, title).
-					FontSize(12.5).
-					FontWeight(600).
-					TextColor(p.Ink).
-					MaxWidth(360).
+					FontSize(TypeBodyPrimary).
+					FontWeight(500).
+					TextColor(p.InkSoft).
+					MaxWidth(320).
 					Shrink(1).
 					MinWidth(0).
 					SingleLine().
 					Ellipsis("…").
 					Tooltip(title)
 				if currentNote != nil {
-					ui.Text(c, markdown.RelativeDate(currentNote.UpdatedAt)).
-						FontSize(10.5).
+					ui.Text(c, "·  "+markdown.RelativeDate(currentNote.UpdatedAt)).
+						FontSize(TypeCaption).
 						TextColor(p.SoftMuted).
-						Margin(0, 0, 0, 4).
+						Margin(0, 0, 0, 2).
 						Shrink(0).
 						SingleLine()
 				}
@@ -223,8 +223,8 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 					statusIcon = assets.IconLock
 					statusTip = "只读"
 				}
-				ui.Box(c).Size(32, 32).Center().Tooltip(statusTip).Children(func() {
-					ui.Icon(c, statusIcon).FontSize(14).TextColor(p.SoftMuted)
+				ui.Box(c).Size(28, 28).Center().Tooltip(statusTip).Children(func() {
+					ui.Icon(c, statusIcon).FontSize(13).TextColor(p.SoftMuted)
 				})
 
 				if a.view == model.ViewTrash {
@@ -302,69 +302,72 @@ func editorTextInset(panelWidth float32, focusMode bool) float32 {
 	return max(24, (panelWidth-12-textWidth)/2)
 }
 
-func (a *App) renderEditorFloatingMeta(c *ui.Context, p Palette) {
+func (a *App) renderEditorStatusBar(c *ui.Context, p Palette) {
 	if a.currentDoc == nil {
 		return
 	}
 
 	_, chars := markdown.WordStats(a.currentDoc.Text().PlainText())
-	dock := ui.Row(c).
-		Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).
-		Right(18).
-		Bottom(14).
-		Gap(8)
-	shadow := ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.24), float32(0.055)))
+	ui.Row(c).
+		FillWidth().
+		Height(26).
+		Padding(0, 16).
+		AlignItems(ui.Center).
+		BorderWidth(1, 0, 0, 0).
+		BorderColor(p.BorderSoft).
+		Background(p.Editor).
+		Children(func() {
+			saveText := "已保存"
+			if a.saveFailed {
+				saveText = "保存失败，请检查数据库"
+			} else if a.view == model.ViewTrash {
+				saveText = "回收站只读"
+			}
+			ui.Text(c, saveText).FontSize(TypeCaption).TextColor(p.SoftMuted)
 
-	dock.Children(func() {
-		stats := ui.Row(c).
-			Height(31).
-			Padding(0, 12).
-			AlignItems(ui.Center).
-			Gap(3).
-			Radius(10).
-			Background(p.Sidebar).
-			Border(1, p.BorderSoft)
-		stats.Shadow(0, 1, 7, 0, shadow)
-		stats.Children(func() {
-			ui.Text(c, groupDigits(chars)).
-				FontSize(11).
-				FontWeight(600).
-				TextColor(p.InkSoft).
-				SingleLine()
-			ui.Text(c, "字").
-				FontSize(9.5).
-				TextColor(p.Muted).
-				SingleLine()
-		})
+			ui.Box(c).Grow(1)
 
-		outline := ui.Button(c, "").
-			Key("outline-toggle").
-			Height(31).
-			Padding(0, 12).
-			Radius(10).
-			Border(0, ui.Color{}).
-			Tooltip(conditional(a.showOutline, "隐藏大纲", "显示大纲"))
-		outline.Background(p.Sidebar)
-		outline.Border(1, p.BorderSoft)
-		outline.Shadow(0, 1, 7, 0, shadow)
-		outline.Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-				ink := conditional(a.showOutline, p.Accent, p.Muted)
-				ui.Icon(c, assets.IconOutline).FontSize(12).TextColor(ink)
-				ui.Text(c, "大纲").FontSize(10.5).TextColor(ink)
+			ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(3).Children(func() {
+					ui.Text(c, groupDigits(chars)).
+						FontSize(TypeMeta).
+						FontWeight(600).
+						TextColor(p.QuietInk).
+						SingleLine()
+					ui.Text(c, "字").
+						FontSize(TypeCaption).
+						TextColor(p.Muted).
+						SingleLine()
+				})
+
+				outline := ui.Button(c, "").
+					Key("outline-toggle").
+					Height(22).
+					Padding(0, 8).
+					Radius(4).
+					Border(0, ui.Color{}).
+					Tooltip(conditional(a.showOutline, "隐藏大纲", "显示大纲"))
+				fill := ui.Color{}
+				ink := p.Muted
+				if a.showOutline {
+					fill = p.AccentSoft
+					ink = p.Accent
+				} else if outline.Hovered() {
+					fill = p.SurfaceHover
+					ink = p.Ink
+				}
+				outline.Background(outline.AnimateColor("fill", fill, colorAnimation))
+				outline.Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+						ui.Icon(c, assets.IconOutline).FontSize(11).TextColor(ink)
+						ui.Text(c, "大纲").FontSize(TypeCaption).TextColor(ink)
+					})
+				})
+				if outline.Clicked() {
+					a.toggleOutline()
+				}
 			})
 		})
-		fill := p.Sidebar
-		if a.showOutline {
-			fill = p.AccentSoft
-		} else if outline.Hovered() {
-			fill = p.SurfaceHover
-		}
-		outline.Background(outline.AnimateColor("fill", fill, colorAnimation))
-		if outline.Clicked() {
-			a.toggleOutline()
-		}
-	})
 }
 
 func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
@@ -378,8 +381,6 @@ func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
 	top := min(max(state.Offset/26, 0), 1)
 	bottom := min(max((state.Max-state.Offset)/26, 0), 1)
 	if top > 0 {
-		// The outline is a reading aid, not a scrollbar surface: cover the
-		// track MyGo draws on hover without taking the pointer from the list.
 		ui.Box(c).
 			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).
 			WidthPercent(100).
@@ -392,7 +393,7 @@ func (a *App) renderEditorEdgeFades(c *ui.Context, p Palette) {
 		ui.Box(c).
 			Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).
 			WidthPercent(100).
-			Height(38).
+			Height(32).
 			Gradient(p.Editor.Alpha(0), p.Editor, 180).
 			Opacity(bottom).
 			PassThrough()
@@ -419,10 +420,10 @@ func groupDigits(n int) string {
 
 func (a *App) renderEmptyWorkspace(c *ui.Context, p Palette) {
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(12).Children(func() {
-		ui.Box(c).Size(52, 52).Radius(26).Background(p.AccentSoft).Center().Children(func() {
-			ui.Icon(c, assets.ElephantLogo).FontSize(24).TextColor(p.Accent)
+		ui.Box(c).Size(46, 46).Radius(23).Background(p.AccentSoft).Center().Children(func() {
+			ui.Icon(c, assets.ElephantLogo).FontSize(22).TextColor(p.Accent)
 		})
-		ui.Text(c, "写下第一篇笔记").Font(Fonts.Heading).FontSize(21).FontWeight(700).TextColor(p.Ink)
+		ui.Text(c, "写下第一篇笔记").Font(Fonts.Heading).FontSize(TypeDisplay).FontWeight(700).TextColor(p.Ink)
 		if a.textButton(c, p, "新建笔记", true, false).Clicked() {
 			a.actionNewNote()
 		}
@@ -432,7 +433,7 @@ func (a *App) renderEmptyWorkspace(c *ui.Context, p Palette) {
 const (
 	outlineWidth    = float32(216)
 	outlineGutter   = float32(24)
-	outlineRowSize  = float32(32)
+	outlineRowSize  = float32(30)
 	outlineRowSpace = float32(1)
 )
 
@@ -462,12 +463,12 @@ func (a *App) renderOutlinePanel(c *ui.Context, p Palette) {
 			DragWindow().
 			Children(func() {
 				ui.Column(c).Gap(1).Grow(1).Children(func() {
-					ui.Text(c, "笔记大纲").FontSize(14).Bold().TextColor(p.Ink).SingleLine()
+					ui.Text(c, "笔记大纲").FontSize(TypeSubtitle).Bold().TextColor(p.Ink).SingleLine()
 					subtitle := "当前笔记暂无标题"
 					if len(headings) > 0 {
 						subtitle = fmt.Sprintf("%d 个标题", len(headings))
 					}
-					ui.Text(c, subtitle).FontSize(10).TextColor(p.SoftMuted).SingleLine()
+					ui.Text(c, subtitle).FontSize(TypeCaption).TextColor(p.SoftMuted).SingleLine()
 				})
 				if a.iconButton(c, p, "close-outline", assets.IconArrowLeft, "返回笔记列表").Clicked() {
 					a.closeOutline()
@@ -486,7 +487,7 @@ func (a *App) renderOutlinePanel(c *ui.Context, p Palette) {
 // itself is full width, as in card editing and focus mode.
 func (a *App) renderFloatingOutline(c *ui.Context, p Palette) {
 	_, windowHeight := c.Size()
-	height := windowHeight - topBarHeight(c) - 16 - 96
+	height := windowHeight - topBarHeight(c) - 16 - 80
 	if height < 160 {
 		height = 160
 	}
@@ -517,15 +518,15 @@ func (a *App) renderFloatingOutline(c *ui.Context, p Palette) {
 
 func (a *App) renderOutlineEmpty(c *ui.Context, p Palette) {
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(7).Children(func() {
-		ui.Icon(c, assets.IconOutline).FontSize(18).TextColor(p.SoftMuted)
-		ui.Text(c, "还没有标题").FontSize(12).TextColor(p.Muted).SingleLine()
-		ui.Text(c, "用 # 标题建立大纲").FontSize(10.5).TextColor(p.SoftMuted).SingleLine()
+		ui.Icon(c, assets.IconOutline).FontSize(16).TextColor(p.SoftMuted)
+		ui.Text(c, "还没有标题").FontSize(TypeBodySecondary).TextColor(p.Muted).SingleLine()
+		ui.Text(c, "用 # 标题建立大纲").FontSize(TypeCaption).TextColor(p.SoftMuted).SingleLine()
 	})
 }
 
 func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntry, floating bool, viewport float32) {
 	active := a.outlineActive(headings)
-	topPad := float32(14)
+	topPad := float32(12)
 	if floating && viewport > 0 {
 		contentHeight := float32(len(headings))*outlineRowSize + float32(len(headings)-1)*outlineRowSpace
 		if contentHeight+24 < viewport {
@@ -558,7 +559,7 @@ func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntr
 						Label("跳转到 "+heading.Text).
 						WidthPercent(100).
 						Height(outlineRowSize).
-						Padding(0, 16, 0, 8+indent).
+						Padding(0, 14, 0, 8+indent).
 						Border(0, ui.Color{}).
 						Background(ui.Color{}).
 						AlignItems(ui.Center).
@@ -592,9 +593,9 @@ func (a *App) renderOutlineList(c *ui.Context, p Palette, headings []outlineEntr
 					}
 
 					row.Children(func() {
-						size := float32(13.5)
+						size := TypeBodyPrimary
 						if floating {
-							size = 12.8
+							size = TypeBodySecondary
 						}
 						text := ui.Text(c, heading.Text).
 							FontSize(size).
@@ -706,8 +707,6 @@ func activeOutlineIndex(entries []outlineEntry, doc *richtext.Document) int {
 		return active
 	}
 
-	// A heading counts as current once it reaches the reading line near the
-	// top, even while the paragraph above it is still partly visible.
 	const activationLine = float32(32)
 	tops := make(map[int]float32, len(boxes))
 	for _, box := range boxes {
