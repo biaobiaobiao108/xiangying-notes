@@ -226,7 +226,7 @@ func (a *App) flushToast(c *ui.Context) {
 }
 
 func (a *App) selectNote(id string) bool {
-	if id == a.selectedNoteID {
+	if id == a.selectedNoteID && (id != "" || a.currentDoc == nil) {
 		return true
 	}
 	if !a.saveCurrentNote() {
@@ -374,15 +374,10 @@ func (a *App) exportAllNotesZip() {
 	a.showToast(fmt.Sprintf("已成功导出 %d 篇笔记至 ZIP", count))
 }
 
-func (a *App) exportCurrentNoteMarkdown() {
-	if a.selectedNoteID == "" {
-		a.showToast("未选中笔记")
-		return
-	}
+func (a *App) exportSingleNoteByID(noteID, title string) {
 	if !a.saveCurrentNote() {
 		return
 	}
-	title := a.currentNoteTitle
 	if title == "" {
 		title = "未命名笔记"
 	}
@@ -391,12 +386,20 @@ func (a *App) exportCurrentNoteMarkdown() {
 	if err != nil || destPath == "" {
 		return
 	}
-	if err := a.store.ExportNoteMarkdown(a.selectedNoteID, destPath); err != nil {
+	if err := a.store.ExportNoteMarkdown(noteID, destPath); err != nil {
 		a.showToast("导出失败: " + err.Error())
 		return
 	}
-	a.dialogExport = false
 	a.showToast("已成功导出 Markdown 文件")
+}
+
+func (a *App) exportCurrentNoteMarkdown() {
+	if a.selectedNoteID == "" {
+		a.showToast("未选中笔记")
+		return
+	}
+	a.dialogExport = false
+	a.exportSingleNoteByID(a.selectedNoteID, a.currentNoteTitle)
 }
 
 func (a *App) backupDatabase() {
@@ -600,13 +603,20 @@ func (a *App) openTag(tag string) {
 	a.refreshData()
 }
 
+func (a *App) setLayout(mode model.LayoutMode) {
+	if a.layoutMode == mode {
+		return
+	}
+	a.layoutMode = mode
+	a.cardViewOpen = false
+}
+
 func (a *App) toggleLayout() {
 	if a.layoutMode == model.LayoutGrid {
-		a.layoutMode = model.LayoutSplit
+		a.setLayout(model.LayoutSplit)
 	} else {
-		a.layoutMode = model.LayoutGrid
+		a.setLayout(model.LayoutGrid)
 	}
-	a.cardViewOpen = false
 }
 
 func (a *App) toggleFocusMode() {

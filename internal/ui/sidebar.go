@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/lobehub/lobe-mygo/pkg/overlay"
 
 	"xiangying/assets"
 	"xiangying/internal/model"
@@ -45,15 +46,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 
 				ui.Text(c, "象映笔记").FontSize(14).Bold().TextColor(p.Ink).Grow(1).SingleLine()
 
-				layoutTip := "切换到卡片视图"
-				layoutIcon := assets.IconLayoutGrid
-				if a.layoutMode == model.LayoutGrid {
-					layoutTip = "切换到分栏视图"
-					layoutIcon = assets.IconLayoutPanel
-				}
-				if a.iconButton(c, p, "layout-toggle", layoutIcon, layoutTip).Clicked() {
-					a.toggleLayout()
-				}
+				a.renderViewSwitcher(c, p)
 			})
 
 		ui.Column(c).Grow(1).Padding(0, 12).Children(func() {
@@ -234,6 +227,12 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 								ink := p.InkSoft
 								if isChosen {
 									ink = p.Ink
+								}
+
+								if k := overlay.ContextMenu(c, row, overlay.DropdownMenuProps{
+									Items: a.buildNotebookMenuItems(notebook),
+								}); k != "" {
+									a.handleNotebookContextAction(c, notebook, k)
 								}
 
 								if row.Clicked() && !isChosen {

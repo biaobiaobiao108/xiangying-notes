@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/lobehub/lobe-mygo/pkg/overlay"
 
 	"xiangying/assets"
 	"xiangying/internal/markdown"
@@ -152,7 +153,7 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 
 						item := a.renderNoteListItem(c, p, entry.note, itemWidth)
 						item.Absolute().Left(noteListPadH).Top(entry.top)
-						if bounds := item.Bounds(); bounds.H > 0 {
+						if bounds := item.Bounds(); bounds.H > 0 && a.noteListHeights != nil {
 							if old := a.noteListHeights[entry.note.ID]; math.Abs(float64(old-bounds.H)) > 0.5 {
 								a.noteListHeights[entry.note.ID] = bounds.H
 							}
@@ -267,6 +268,12 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 	item.Background(fill)
 	if selected {
 		item.Shadow(0, 2, 10, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.28), float32(0.055))))
+	}
+
+	if k := overlay.ContextMenu(c, item, overlay.DropdownMenuProps{
+		Items: a.buildNoteMenuItems(note),
+	}); k != "" {
+		a.handleNoteContextAction(c, note, k)
 	}
 
 	if item.Clicked() && !selected {

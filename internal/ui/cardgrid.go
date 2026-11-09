@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/lobehub/lobe-mygo/pkg/overlay"
 
 	"xiangying/assets"
 	"xiangying/internal/markdown"
@@ -63,12 +64,9 @@ func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 					ui.Text(c, a.noteCountLabel()).FontSize(10).TextColor(p.SoftMuted)
 				})
 
-				ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 					if a.iconButton(c, p, "grid-new-note", assets.IconPlus, "新建笔记").Clicked() {
 						a.actionNewNote()
-					}
-					if a.iconButton(c, p, "grid-layout", assets.IconLayoutPanel, "切换到分栏视图").Clicked() {
-						a.toggleLayout()
 					}
 				})
 			})
@@ -128,7 +126,7 @@ func (a *App) renderCardGrid(c *ui.Context, p Palette) {
 						card.Absolute().
 							Left(padX + float32(column)*(cardWidth+cardGap)).
 							Top(cardPagePad + item.top)
-						if bounds := card.Bounds(); bounds.H > 0 {
+						if bounds := card.Bounds(); bounds.H > 0 && a.cardHeights != nil {
 							if old, ok := a.cardHeights[note.ID]; !ok || math.Abs(float64(old-bounds.H)) > 0.5 {
 								a.cardHeights[note.ID] = bounds.H
 							}
@@ -298,6 +296,12 @@ func (a *App) renderNoteCard(c *ui.Context, p Palette, note model.Note, cardWidt
 	card.AnimatePose(ui.Pose{Y: -3 * lift, Scale: 1 + 0.006*lift}, ui.Snappy)
 	shadowBlur := 7 + 6*lift
 	card.Shadow(0, 2+2*lift, shadowBlur, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, 0.28+0.10*lift, 0.055+0.04*lift)))
+
+	if k := overlay.ContextMenu(c, card, overlay.DropdownMenuProps{
+		Items: a.buildNoteMenuItems(note),
+	}); k != "" {
+		a.handleNoteContextAction(c, note, k)
+	}
 
 	if card.Clicked() {
 		if a.selectNote(note.ID) {

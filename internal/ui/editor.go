@@ -201,9 +201,6 @@ func (a *App) renderEditorHeader(c *ui.Context, p Palette, currentNote *model.No
 
 			ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
 				if currentNote == nil {
-					if a.iconButton(c, p, "header-layout", layoutIcon(a.layoutMode), "切换布局").Clicked() {
-						a.toggleLayout()
-					}
 					return
 				}
 
@@ -764,11 +761,4 @@ func (a *App) editorTheme(c *ui.Context, p Palette, textInset float32) *richtext
 	theme.Headings[0].Top = 0
 	theme.Headings[0].Bottom = 0.42
 	return theme
-}
-
-func layoutIcon(mode model.LayoutMode) *ui.SVG {
-	if mode == model.LayoutGrid {
-		return assets.IconLayoutPanel
-	}
-	return assets.IconLayoutGrid
 }
