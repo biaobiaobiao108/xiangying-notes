@@ -254,3 +254,166 @@ func (a *App) handleNotebookContextAction(c *ui.Context, nb model.Notebook, key 
 		a.showToast("已删除笔记本，笔记已移至收件箱")
 	}
 }
+
+// buildEditorMenuItems constructs the contextual actions for the markdown editor.
+func (a *App) buildEditorMenuItems() []overlay.MenuItem {
+	if a.currentDoc == nil {
+		return nil
+	}
+
+	readOnly := a.view == model.ViewTrash
+	anchor, caret := a.currentDoc.Selection()
+	hasSelection := anchor != caret
+
+	items := []overlay.MenuItem{
+		{
+			Key:      "cut",
+			Label:    "剪切",
+			Hotkey:   "mod+x",
+			Disabled: readOnly || !hasSelection,
+		},
+		{
+			Key:      "copy",
+			Label:    "复制",
+			Hotkey:   "mod+c",
+			Disabled: !hasSelection,
+		},
+		{
+			Key:      "paste",
+			Label:    "粘贴",
+			Hotkey:   "mod+v",
+			Disabled: readOnly,
+		},
+		{Divider: true},
+		{
+			Key:      "format-bold",
+			Label:    "粗体",
+			Hotkey:   "mod+b",
+			Disabled: readOnly,
+		},
+		{
+			Key:      "format-italic",
+			Label:    "斜体",
+			Hotkey:   "mod+i",
+			Disabled: readOnly,
+		},
+		{
+			Key:      "format-code",
+			Label:    "行内代码",
+			Hotkey:   "mod+e",
+			Disabled: readOnly,
+		},
+		{
+			Key:      "insert-wikilink",
+			Label:    "双链引用",
+			Icon:     assets.IconLink,
+			Disabled: readOnly,
+		},
+		{Divider: true},
+		{
+			Key:    "select-all",
+			Label:  "全选",
+			Hotkey: "mod+a",
+		},
+		{
+			Key:   "copy-full-markdown",
+			Label: "复制全文 Markdown",
+			Icon:  assets.IconAllNotes,
+		},
+		{Divider: true},
+		{
+			Key:   "toggle-outline",
+			Label: "大纲视图",
+			Icon:  assets.IconOutline,
+		},
+		{
+			Key:   "toggle-focus",
+			Label: "专注模式",
+			Icon:  assets.IconExpand,
+		},
+	}
+
+	return items
+}
+
+func (a *App) handleEditorContextAction(c *ui.Context, key string) {
+	if a.currentDoc == nil || key == "" {
+		return
+	}
+	readOnly := a.view == model.ViewTrash
+	anchor, caret := a.currentDoc.Selection()
+	start, end := min(anchor, caret), max(anchor, caret)
+
+	switch key {
+	case "cut":
+		if readOnly || start == end {
+			return
+		}
+		selectedText := a.currentDoc.Text().Slice(start, end).String()
+		c.Services().WriteClipboard(selectedText)
+		a.currentDoc.InsertText("")
+		a.scheduleSave(c)
+		a.showToast("已剪切")
+
+	case "copy":
+		if start == end {
+			return
+		}
+		selectedText := a.currentDoc.Text().Slice(start, end).String()
+		c.Services().WriteClipboard(selectedText)
+		a.showToast("已复制所选内容")
+
+	case "paste":
+		if readOnly {
+			return
+		}
+		a.pasteClipboard(c.Services())
+
+	case "format-bold":
+		if readOnly {
+			return
+		}
+		a.currentDoc.ToggleBold()
+		a.scheduleSave(c)
+
+	case "format-italic":
+		if readOnly {
+			return
+		}
+		a.currentDoc.ToggleItalic()
+		a.scheduleSave(c)
+
+	case "format-code":
+		if readOnly {
+			return
+		}
+		a.currentDoc.ToggleCode()
+		a.scheduleSave(c)
+
+	case "insert-wikilink":
+		if readOnly {
+			return
+		}
+		if start != end {
+			sel := a.currentDoc.Text().Slice(start, end).String()
+			a.currentDoc.InsertText("[[" + sel + "]]")
+		} else {
+			a.currentDoc.InsertText("[[]]")
+			a.currentDoc.SetSelection(start+2, start+2)
+		}
+		a.scheduleSave(c)
+
+	case "select-all":
+		a.currentDoc.SetSelection(0, a.currentDoc.Text().Len())
+
+	case "copy-full-markdown":
+		c.Services().WriteClipboard(a.currentDoc.Text().Markdown())
+		a.showToast("已复制全文 Markdown")
+
+	case "toggle-outline":
+		a.toggleOutline()
+
+	case "toggle-focus":
+		a.toggleFocusMode()
+	}
+}

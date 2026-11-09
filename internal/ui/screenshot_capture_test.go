@@ -106,4 +106,13 @@ func TestCaptureScreenshots(t *testing.T) {
 	app.dialogExport = true
 	ttExport := ui.NewTester(app.View, 1280, 720)
 	saveImg("docs/assets/screenshots/export-dialog-light.jpg", ttExport)
+
+	// 5. Editor Context Menu
+	app.dialogExport = false
+	if targetID != "" {
+		app.selectNote(targetID)
+	}
+	ttEditorCM := ui.NewTester(app.View, 1280, 720)
+	ttEditorCM.RightClickAt(650, 280)
+	saveImg("docs/assets/screenshots/editor-context-menu-light.jpg", ttEditorCM)
 }

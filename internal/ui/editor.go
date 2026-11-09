@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/richtext"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
+	"github.com/lobehub/lobe-mygo/pkg/overlay"
 
 	"xiangying/assets"
 	"xiangying/internal/markdown"
@@ -51,9 +52,10 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 					Children(func() {
 						ui.Box(c).Grow(1).FillWidth().Clip().Background(p.Editor).Children(func() {
 							editor := richtext.Editor(c.Key(a.selectedNoteID), a.currentDoc, richtext.EditorOptions{
-								Label:       "笔记正文",
-								Placeholder: "开始记录你的想法…",
-								ReadOnly:    a.view == model.ViewTrash,
+								Label:             "笔记正文",
+								Placeholder:       "开始记录你的想法…",
+								ReadOnly:          a.view == model.ViewTrash,
+								CustomContextMenu: true,
 								Font: ui.Font{
 									Family:     Fonts.Body,
 									Size:       16.5,
@@ -68,6 +70,13 @@ func (a *App) renderWorkspace(c *ui.Context, p Palette) {
 								OnShortcut(ui.Cmd, ui.KeyV, func() {
 									a.pasteClipboard(c.Services())
 								})
+
+							if k := overlay.ContextMenu(c, editor, overlay.DropdownMenuProps{
+								Items: a.buildEditorMenuItems(),
+							}); k != "" {
+								a.handleEditorContextAction(c, k)
+							}
+
 							if editor.Changed() {
 								a.scheduleSave(c)
 							}

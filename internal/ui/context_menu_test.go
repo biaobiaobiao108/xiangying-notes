@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,5 +309,81 @@ func TestSegmentedViewSwitcherIntegration(t *testing.T) {
 
 	if app.layoutMode != model.LayoutSplit {
 		t.Fatalf("expected layoutMode to be LayoutSplit, got %v", app.layoutMode)
+	}
+}
+
+func TestEditorContextMenuIntegration(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := db.Open(filepath.Join(tmpDir, "editor_cm_full.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	app := NewApp(store)
+	if len(app.notes) == 0 {
+		t.Fatal("expected seeded notes")
+	}
+	app.selectNote(app.notes[0].ID)
+
+	tt := ui.NewTester(app.View, 1280, 720)
+
+	// 1. Right click inside the editor area
+	tt.RightClickAt(700, 300)
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	expectedItems := []string{
+		"剪切", "复制", "粘贴",
+		"粗体", "斜体", "行内代码", "双链引用",
+		"全选", "复制全文 Markdown",
+		"大纲视图", "专注模式",
+	}
+	for _, item := range expectedItems {
+		if !tt.HasText(item) {
+			t.Fatalf("expected editor context menu to contain %q, got: %v", item, tt.Texts())
+		}
+	}
+
+	// 2. Click "全选"
+	if err := tt.Click("全选"); err != nil {
+		t.Fatalf("click '全选' failed: %v", err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	anchor, caret := app.currentDoc.Selection()
+	if anchor != 0 || caret != app.currentDoc.Text().Len() {
+		t.Fatalf("expected entire document selected (0 to %d), got (%d, %d)", app.currentDoc.Text().Len(), anchor, caret)
+	}
+
+	// 3. Right click with selection active, click "复制"
+	tt.RightClickAt(700, 300)
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	if err := tt.Click("复制"); err != nil {
+		t.Fatalf("click '复制' failed: %v", err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	if tt.Clipboard() == "" {
+		t.Fatal("expected clipboard to have text after copy")
+	}
+
+	// 4. Test "复制全文 Markdown"
+	tt.RightClickAt(700, 300)
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	if err := tt.Click("复制全文 Markdown"); err != nil {
+		t.Fatalf("click '复制全文 Markdown' failed: %v", err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	if !strings.Contains(tt.Clipboard(), app.notes[0].Title) {
+		t.Fatalf("expected clipboard to contain note title %q, got: %q", app.notes[0].Title, tt.Clipboard())
 	}
 }
