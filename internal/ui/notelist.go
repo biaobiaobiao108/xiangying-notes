@@ -13,23 +13,23 @@ import (
 )
 
 const (
-	noteListPadV          = float32(7)
-	noteListPadH          = float32(8)
-	noteListItemPadV      = float32(10)
-	noteListItemPadH      = float32(11)
+	noteListPadV          = float32(6)
+	noteListPadH          = float32(7)
+	noteListItemPadV      = float32(8)
+	noteListItemPadH      = float32(10)
 	noteListTextInset     = noteListItemPadH * 2
-	noteListHeaderH       = float32(30)
-	noteListRowGap        = float32(4)
-	noteListGroupGap      = float32(5)
+	noteListHeaderH       = float32(26)
+	noteListRowGap        = float32(3)
+	noteListGroupGap      = float32(6)
 	noteListBottomGap     = float32(10)
 	noteListOverscan      = float32(600)
-	noteListTitleSize     = float32(13.5)
-	noteListPreviewSize   = float32(11)
-	noteListPreviewLine   = noteListPreviewSize * 1.55
-	noteListPreviewMargin = float32(3)
-	noteListMetaSize      = float32(9.5)
+	noteListTitleSize     = TypeBodyPrimary
+	noteListPreviewSize   = TypeMeta
+	noteListPreviewLine   = noteListPreviewSize * 1.5
+	noteListPreviewMargin = float32(2)
+	noteListMetaSize      = TypeCaption
 	noteListMetaLine      = noteListMetaSize * uiFontLine
-	noteListBorder        = float32(2)
+	noteListBorder        = float32(0)
 )
 
 type noteListEntry struct {
@@ -44,15 +44,15 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 	ui.Column(c).FillHeight().Background(p.List).Children(func() {
 		ui.Row(c).
 			Height(topBarHeight(c)).
-			Padding(0, 14).
+			Padding(0, 12).
 			AlignItems(ui.Center).
 			BorderWidth(0, 0, 1, 0).
 			BorderColor(p.BorderSoft).
 			DragWindow().
 			Children(func() {
 				ui.Column(c).Gap(1).Grow(1).Children(func() {
-					ui.Text(c, a.currentViewTitle()).FontSize(14).Bold().TextColor(p.Ink).SingleLine()
-					ui.Text(c, a.noteCountLabel()).FontSize(10).TextColor(p.SoftMuted).SingleLine()
+					ui.Text(c, a.currentViewTitle()).FontSize(TypeSubtitle).Bold().TextColor(p.Ink).SingleLine()
+					ui.Text(c, a.noteCountLabel()).FontSize(TypeCaption).TextColor(p.SoftMuted).SingleLine()
 				})
 
 				if a.searchQuery != "" {
@@ -60,8 +60,8 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 						Key("clear-search-results").
 						Height(24).
 						Padding(0, 8).
-						Radius(5).
-						FontSize(10.5).
+						Radius(4).
+						FontSize(TypeMeta).
 						TextColor(p.Muted).
 						Background(ui.Color{}).
 						Border(0, ui.Color{})
@@ -74,25 +74,27 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 						Key("empty-trash").
 						Height(24).
 						Padding(0, 8).
-						Radius(5).
-						FontSize(10.5).
+						Radius(4).
+						FontSize(TypeMeta).
 						TextColor(p.Danger).
 						Background(ui.Color{}).
 						Border(0, ui.Color{})
 					if empty.Clicked() {
 						a.dialogConfirmEmptyTrash = true
 					}
+				} else {
+					a.renderViewSwitcher(c, p)
 				}
 			})
 
 		if len(a.notes) == 0 {
 			ui.Scroll(c).Grow(1).Children(func() {
-				ui.Column(c).FillWidth().Padding(24, 20).AlignSelf(ui.Center).Gap(10).Children(func() {
-					ui.Box(c).Size(40, 40).Radius(20).Background(p.SurfaceHover).Center().Children(func() {
+				ui.Column(c).FillWidth().Padding(28, 20).AlignSelf(ui.Center).Gap(10).Children(func() {
+					ui.Box(c).Size(38, 38).Radius(19).Background(p.SurfaceHover).Center().Children(func() {
 						icon := assets.ElephantLogo
-						size := float32(20)
+						size := float32(18)
 						if a.searchQuery != "" {
-							icon, size = assets.IconSearch, 17
+							icon, size = assets.IconSearch, 16
 						}
 						ui.Icon(c, icon).FontSize(size).TextColor(p.SoftMuted)
 					})
@@ -100,7 +102,7 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 					if a.searchQuery != "" {
 						message = "没有找到相关笔记"
 					}
-					ui.Text(c, message).FontSize(12).TextColor(p.Muted)
+					ui.Text(c, message).FontSize(TypeBodySecondary).TextColor(p.Muted)
 					if a.searchQuery == "" {
 						if a.textButton(c, p, "新建笔记", true, false).Clicked() {
 							a.actionNewNote()
@@ -131,8 +133,6 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 				return smoothListWheel(&a.noteListScroll, &a.noteListScrollTarget, ev)
 			}).
 			Children(func() {
-				// Only the entries near the viewport are built; the spacer box
-				// keeps the scrollbar proportionate to the whole list.
 				ui.Box(c).FillWidth().Height(totalHeight).Children(func() {
 					for i := first; i < last; i++ {
 						entry := entries[i]
@@ -140,13 +140,11 @@ func (a *App) renderNoteList(c *ui.Context, p Palette) {
 							header := ui.Row(c).
 								Width(itemWidth).
 								Height(noteListHeaderH).
-								Padding(0, 7).
+								Padding(0, 6).
 								AlignItems(ui.Center).
-								Gap(9)
-							header.Children(func() {
-								ui.Text(c, entry.title).FontSize(9.5).Bold().TextColor(p.SoftMuted)
-								ui.Box(c).Grow(1).Height(1).Background(p.BorderSoft)
-							})
+								Children(func() {
+									ui.Text(c, entry.title).FontSize(TypeCaption).Bold().TextColor(p.SoftMuted)
+								})
 							header.Absolute().Left(noteListPadH).Top(entry.top)
 							continue
 						}
@@ -230,7 +228,7 @@ func noteListTitleLineHeight(c *ui.Context) float32 {
 
 func estimateNoteListItemHeight(c *ui.Context, note model.Note, width float32, lines noteListLineMetrics) float32 {
 	textWidth := max(width-noteListTextInset, 1)
-	height := 2*noteListItemPadV + noteListBorder + lines.title + noteListRowGap + noteListMetaLine
+	height := 2*noteListItemPadV + lines.title + noteListRowGap + noteListMetaLine
 	if note.Preview != "" {
 		previewLines := measuredTextLines(c, note.Preview, textWidth, lines.preview, noteListPreviewSize, 400, "", 2)
 		height += noteListRowGap + float32(previewLines)*noteListPreviewLine + noteListPreviewMargin
@@ -244,9 +242,9 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 		Key(note.ID).
 		Width(width).
 		Padding(noteListItemPadV, noteListItemPadH).
-		Radius(9).
+		Radius(6).
 		AlignItems(ui.Stretch).
-		Border(1, conditional(selected, p.Border, ui.Color{})).
+		Border(0, ui.Color{}).
 		Cursor(ui.CursorPointer)
 
 	animation := ui.Snappy
@@ -254,21 +252,17 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 		Position:  true,
 		Colors:    true,
 		Animation: &animation,
-		Enter:     &ui.Motion{X: -8, Opacity: 0},
-		Exit:      &ui.Motion{X: 10, Opacity: 0},
+		Enter:     &ui.Motion{X: -6, Opacity: 0},
+		Exit:      &ui.Motion{X: 8, Opacity: 0},
 	})
 
-	fill := p.List
-	if item.Hovered() {
-		fill = p.Sidebar
-	}
+	fill := ui.Color{}
 	if selected {
-		fill = p.Surface
+		fill = p.SurfaceSelect
+	} else if item.Hovered() {
+		fill = p.SurfaceHover
 	}
 	item.Background(fill)
-	if selected {
-		item.Shadow(0, 2, 10, 0, ui.RGBA(0, 0, 0, conditional(p.IsDark, float32(0.28), float32(0.055))))
-	}
 
 	if k := overlay.ContextMenu(c, item, overlay.DropdownMenuProps{
 		Items: a.buildNoteMenuItems(note),
@@ -282,7 +276,7 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 
 	markerTarget := float32(0)
 	if selected {
-		markerTarget = 30
+		markerTarget = 22
 	}
 	marker := item.AnimateTo("marker", markerTarget, ui.Snappy)
 
@@ -290,11 +284,11 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 		ui.Box(c).Width(2).Height(marker).Radius(1).Background(p.Accent).
 			Attach(ui.AnchorLeft, ui.AnchorLeft)
 
-		ui.Column(c).Grow(1).Gap(4).Children(func() {
+		ui.Column(c).Grow(1).Gap(3).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 				title := ui.Text(c, note.Title).
 					Font(Fonts.Body).
-					FontSize(13.5).
+					FontSize(TypeBodyPrimary).
 					FontWeight(600).
 					TextColor(p.Ink).
 					Grow(1).
@@ -303,17 +297,17 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 					title.Bold()
 				}
 				if note.IsFavorite {
-					ui.Icon(c, assets.IconStarFilled).FontSize(10).TextColor(p.Star)
+					ui.Icon(c, assets.IconStarFilled).FontSize(9.5).TextColor(p.Star)
 				}
 			})
 
 			if note.Preview != "" {
 				ui.Text(c, note.Preview).
-					FontSize(11).
-					LineHeight(1.55).
-					TextColor(p.Muted).
+					FontSize(TypeMeta).
+					LineHeight(1.5).
+					TextColor(p.QuietInk).
 					MaxLines(2).
-					Margin(0, 0, 3, 0)
+					Margin(0, 0, 2, 0)
 			}
 
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -325,8 +319,8 @@ func (a *App) renderNoteListItem(c *ui.Context, p Palette, note model.Note, widt
 				if summary := tagSummary(note.Tags, 2); summary != "" {
 					meta += "  " + summary
 				}
-				ui.Text(c, meta).FontSize(9.5).TextColor(p.SoftMuted).Grow(1).SingleLine()
-				ui.Text(c, markdown.RelativeDate(note.UpdatedAt)).FontSize(9.5).TextColor(p.SoftMuted)
+				ui.Text(c, meta).FontSize(TypeCaption).TextColor(p.SoftMuted).Grow(1).SingleLine()
+				ui.Text(c, markdown.RelativeDate(note.UpdatedAt)).FontSize(TypeCaption).TextColor(p.SoftMuted)
 			})
 		})
 	})

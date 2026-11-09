@@ -17,54 +17,54 @@ const sidebarScrollFade = float32(24)
 func (a *App) renderSidebar(c *ui.Context, p Palette) {
 	sidebar := ui.Column(c).FillHeight().Background(p.Sidebar)
 	sidebar.Children(func() {
-		// Brand and window-drag area.
+		// Brand and window-drag area with unified 44px horizon line.
 		ui.Row(c).
 			Height(topBarHeight(c)).
 			Padding(0, 16).
 			AlignItems(ui.Center).
 			Gap(9).
+			BorderWidth(0, 0, 1, 0).
+			BorderColor(p.BorderSoft).
 			DragWindow().
 			Children(func() {
 				logo := ui.ButtonBase(c).
 					Key("brand-logo-btn").
 					Label("象映笔记图标").
-					Size(30, 30).
-					Radius(8).
+					Size(26, 26).
+					Radius(6).
 					Padding(0).
 					Background(ui.Color{}).
 					Border(0, ui.Color{}).
 					Cursor(ui.CursorPointer)
 				logo.Children(func() {
 					ui.Image(c, assets.AppIcon).
-						Size(30, 30).
-						Radius(8).
+						Size(26, 26).
+						Radius(6).
 						Fit(ui.Cover)
 				})
 				if logo.Clicked() {
 					a.onLogoClick(c.Now())
 				}
 
-				ui.Text(c, "象映笔记").FontSize(14).Bold().TextColor(p.Ink).Grow(1).SingleLine()
-
-				a.renderViewSwitcher(c, p)
+				ui.Text(c, "象映笔记").FontSize(TypeSubtitle).Bold().TextColor(p.Ink).Grow(1).SingleLine()
 			})
 
 		ui.Column(c).Grow(1).Padding(0, 12).Children(func() {
-			ui.Box(c).Height(4)
+			ui.Box(c).Height(8)
 
 			newNote := ui.ButtonBase(c).
 				Key("new-note").
 				FillWidth().
-				Height(38).
+				Height(36).
 				Padding(0, 12).
-				Radius(8).
+				Radius(6).
 				Gap(8).
 				Justify(ui.Start)
 			newNote.Children(func() {
-				ui.Icon(c, assets.IconPlus).FontSize(14).TextColor(p.OnAccent)
-				ui.Text(c, "新建笔记").FontSize(12.5).Bold().TextColor(p.OnAccent)
+				ui.Icon(c, assets.IconPlus).FontSize(13).TextColor(p.OnAccent)
+				ui.Text(c, "新建笔记").FontSize(TypeBodyPrimary).Bold().TextColor(p.OnAccent)
 				ui.Box(c).Grow(1)
-				ui.Text(c, "Ctrl N").FontSize(9.5).TextColor(p.OnAccent.Alpha(0.64))
+				ui.Text(c, "Ctrl N").FontSize(TypeCaption).TextColor(p.OnAccent.Alpha(0.65))
 			})
 			fill := p.Accent
 			if newNote.Hovered() {
@@ -85,21 +85,21 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			// Search is a real filter, and focuses with Ctrl+F.
 			search := ui.Row(c).
 				Key("search").
-				Height(36).
+				Height(34).
 				Padding(0, 10).
-				Radius(8).
+				Radius(6).
 				AlignItems(ui.Center).
 				Gap(7)
 
 			var searchInput ui.Element
 			search.Children(func() {
-				ui.Icon(c, assets.IconSearch).FontSize(13).TextColor(p.Muted)
+				ui.Icon(c, assets.IconSearch).FontSize(12).TextColor(p.Muted)
 				searchInput = ui.TextInputBase(c, &a.searchQuery).
 					Label("搜索笔记").
 					Placeholder("搜索笔记或标签").
-					FontSize(11.5).
+					FontSize(TypeMeta).
 					TextColor(p.Ink).
-					Height(36).
+					Height(34).
 					Grow(1)
 
 				if a.searchQuery != "" {
@@ -113,7 +113,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 						Border(0, ui.Color{}).
 						Tooltip("清除搜索")
 					clear.Children(func() {
-						ui.Icon(c, assets.IconClose).FontSize(11).TextColor(p.Muted)
+						ui.Icon(c, assets.IconClose).FontSize(10).TextColor(p.Muted)
 					})
 					clear.Background(clear.AnimateColor("fill", conditional(clear.Hovered(), p.SurfaceSelect, ui.Color{}), colorAnimation))
 					if clear.Clicked() {
@@ -135,17 +135,17 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 			}
 			focused := searchInput.Focused()
 			searchFill := p.SearchBg
-			searchBorder := p.Border
+			searchBorder := p.BorderSoft
 			if focused {
 				searchFill = p.Surface
-				searchBorder = p.Accent.Alpha(0.42)
+				searchBorder = p.Accent.Alpha(0.40)
 			} else if search.Hovered() {
 				searchFill = p.Surface
 			}
 			search.Background(search.AnimateColor("fill", searchFill, colorAnimation))
 			search.Border(1, searchBorder)
 
-			ui.Box(c).Height(16)
+			ui.Box(c).Height(14)
 
 			ui.Column(c).Gap(1).Children(func() {
 				a.renderNavRow(c, p, "收件箱", assets.IconInbox, a.view == model.ViewInbox && a.searchQuery == "", func() {
@@ -162,7 +162,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 				})
 			})
 
-			ui.Box(c).Height(18)
+			ui.Box(c).Height(16)
 
 			ui.Column(c).Grow(1).Shrink(1).FillWidth().
 				DrawOver(func(painter *ui.Painter, r ui.Rect) {
@@ -172,8 +172,6 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 					scroll := ui.Scroll(c).
 						Grow(1).
 						FillWidth().
-						// MyGo has no hide-scrollbar switch; move the bar far
-						// outside the sidebar so it neither paints nor takes presses.
 						ScrollbarInsets(0, -1e6, 0).
 						TrackScroll(&a.sidebarScroll).
 						HandleInput(func(ev ui.InputEvent) bool {
@@ -181,20 +179,20 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 						})
 					scroll.Children(func() {
 						ui.Column(c).FillWidth().Gap(2).Children(func() {
-							// Notebooks.
-							ui.Row(c).Height(26).Padding(0, 7).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, "笔记本").FontSize(10.5).Bold().TextColor(p.Muted).Grow(1)
+							// Notebooks section header
+							ui.Row(c).Height(24).Padding(0, 6).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, "笔记本").FontSize(TypeCaption).Bold().TextColor(p.Muted).Grow(1)
 								add := ui.Button(c, "").
 									Key("add-notebook").
 									Label("新建笔记本").
-									Width(20).
-									Height(20).
+									Width(18).
+									Height(18).
 									Padding(0).
 									Radius(4).
 									Border(0, ui.Color{}).
 									Tooltip("新建笔记本")
 								add.Children(func() {
-									ui.Icon(c, assets.IconPlus).FontSize(12).TextColor(p.Muted)
+									ui.Icon(c, assets.IconPlus).FontSize(11).TextColor(p.Muted)
 								})
 								add.Background(add.AnimateColor("fill", conditional(add.Hovered(), p.SurfaceSelect, ui.Color{}), colorAnimation))
 								if add.Clicked() {
@@ -210,7 +208,7 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 								isChosen := a.view == model.ViewNotebook && a.selectedNotebookID == notebook.ID && a.searchQuery == ""
 								row := ui.Row(c).
 									Key("nb-"+notebook.ID).
-									Height(31).
+									Height(29).
 									Padding(0, 8).
 									Radius(6).
 									Gap(8).
@@ -241,28 +239,28 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 								row.Children(func() {
 									dot := parseHexColor(notebook.Color, p.Accent)
 									ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-										ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+										ui.Box(c).Size(5, 5).Radius(2.5).Background(dot)
 									})
-									label := ui.Text(c, notebook.Name).FontSize(12).TextColor(ink).Grow(1).SingleLine()
+									label := ui.Text(c, notebook.Name).FontSize(TypeBodySecondary).TextColor(ink).Grow(1).SingleLine()
 									if isChosen {
 										label.Bold()
 									}
 									if notebook.NoteCount > 0 {
-										ui.Text(c, fmt.Sprintf("%d", notebook.NoteCount)).FontSize(10).TextColor(p.SoftMuted)
+										ui.Text(c, fmt.Sprintf("%d", notebook.NoteCount)).FontSize(TypeCaption).TextColor(p.SoftMuted)
 									}
 								})
 							}
 
 							if len(a.tags) > 0 {
-								ui.Box(c).Height(19)
-								ui.Row(c).Height(24).Padding(0, 7).AlignItems(ui.Center).Children(func() {
-									ui.Text(c, "标签").FontSize(10.5).Bold().TextColor(p.Muted)
+								ui.Box(c).Height(16)
+								ui.Row(c).Height(24).Padding(0, 6).AlignItems(ui.Center).Children(func() {
+									ui.Text(c, "标签").FontSize(TypeCaption).Bold().TextColor(p.Muted)
 								})
 								for _, tag := range a.tags {
 									isChosen := a.view == model.ViewTag && a.selectedTag == tag.Tag && a.searchQuery == ""
 									row := ui.Row(c).
 										Key("tag-"+tag.Tag).
-										Height(28).
+										Height(27).
 										Padding(0, 8).
 										Radius(6).
 										Gap(8).
@@ -280,10 +278,10 @@ func (a *App) renderSidebar(c *ui.Context, p Palette) {
 									}
 									row.Children(func() {
 										ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-											ui.Text(c, "#").FontSize(11).TextColor(p.Accent)
+											ui.Text(c, "#").FontSize(10.5).TextColor(p.Accent)
 										})
-										ui.Text(c, tag.Tag).FontSize(11.5).TextColor(conditional(isChosen, p.Ink, p.QuietInk)).Grow(1).SingleLine()
-										ui.Text(c, fmt.Sprintf("%d", tag.Count)).FontSize(9.5).TextColor(p.SoftMuted)
+										ui.Text(c, tag.Tag).FontSize(TypeMeta).TextColor(conditional(isChosen, p.Ink, p.QuietInk)).Grow(1).SingleLine()
+										ui.Text(c, fmt.Sprintf("%d", tag.Count)).FontSize(TypeCaption).TextColor(p.SoftMuted)
 									})
 								}
 							}
@@ -320,9 +318,9 @@ func paintSidebarScrollFade(p *ui.Painter, r ui.Rect, background ui.Color, state
 func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG, selected bool, onClick func()) {
 	row := ui.Row(c).
 		Key("nav-"+label).
-		Height(33).
+		Height(32).
 		Padding(0, 8).
-		Radius(7).
+		Radius(6).
 		AlignItems(ui.Center).
 		Gap(8).
 		Cursor(ui.CursorPointer)
@@ -345,7 +343,7 @@ func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG,
 
 	target := float32(0)
 	if selected {
-		target = 15
+		target = 14
 	}
 	markerHeight := row.AnimateTo("marker", target, ui.Snappy)
 
@@ -353,9 +351,9 @@ func (a *App) renderNavRow(c *ui.Context, p Palette, label string, icon *ui.SVG,
 		ui.Box(c).Width(2).Height(markerHeight).Radius(1).Background(p.Accent).
 			Attach(ui.AnchorLeft, ui.AnchorLeft)
 		ui.Box(c).Size(sidebarIconSlot, sidebarIconSlot).Center().Children(func() {
-			ui.Icon(c, icon).FontSize(14.5).TextColor(conditional(selected, p.Accent, p.Muted))
+			ui.Icon(c, icon).FontSize(13.5).TextColor(conditional(selected, p.Accent, p.Muted))
 		})
-		text := ui.Text(c, label).FontSize(12.5).TextColor(ink).Grow(1).SingleLine()
+		text := ui.Text(c, label).FontSize(TypeBodyPrimary).TextColor(ink).Grow(1).SingleLine()
 		if selected {
 			text.Bold()
 		}

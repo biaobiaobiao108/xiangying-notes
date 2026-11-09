@@ -38,7 +38,7 @@ func topBarHeight(c *ui.Context) float32 {
 	if height := c.TitleBar().Height; height > 0 {
 		return height
 	}
-	return 46
+	return 44
 }
 
 func windowControlInset(c *ui.Context) int {
@@ -54,10 +54,10 @@ func (a *App) tintedIconButton(c *ui.Context, p Palette, key string, icon *ui.SV
 		Key(key).
 		KeepFocus().
 		Label(tooltip).
-		Width(32).
-		Height(32).
+		Width(30).
+		Height(30).
 		Padding(0).
-		Radius(7).
+		Radius(6).
 		Border(0, ui.Color{}).
 		Tooltip(tooltip)
 
@@ -80,11 +80,11 @@ func (a *App) tintedIconButton(c *ui.Context, p Palette, key string, icon *ui.SV
 	}
 	button.Background(button.AnimateColor("fill", fill, colorAnimation))
 	button.Children(func() {
-		ui.Icon(c, icon).FontSize(15).TextColor(ink)
+		ui.Icon(c, icon).FontSize(14).TextColor(ink)
 	})
 	scale := float32(1)
 	if pressed {
-		scale = 0.94
+		scale = 0.96
 	}
 	button.AnimatePose(ui.Pose{Scale: scale}, ui.Snappy)
 	return button
@@ -96,16 +96,16 @@ func (a *App) textButton(c *ui.Context, p Palette, label string, primary, danger
 		fill, fillHover, ink, border = p.Accent, p.AccentDark, p.OnAccent, ui.Color{}
 	}
 	if danger {
-		fill, fillHover, ink, border = p.DangerSoft, p.DangerSoft, p.Danger, p.Danger.Alpha(0.22)
-		fillHover = p.Danger.Alpha(0.16)
+		fill, fillHover, ink, border = p.DangerSoft, p.DangerSoft, p.Danger, p.Danger.Alpha(0.20)
+		fillHover = p.Danger.Alpha(0.14)
 	}
 
 	button := ui.Button(c, "").
 		Key("button-"+label).
 		KeepFocus().
-		Height(32).
-		Padding(0, 14).
-		Radius(7).
+		Height(30).
+		Padding(0, 13).
+		Radius(6).
 		Border(1, border)
 
 	hovered, pressed := button.Hovered(), button.Pressed()
@@ -115,11 +115,11 @@ func (a *App) textButton(c *ui.Context, p Palette, label string, primary, danger
 	}
 	button.Background(button.AnimateColor("fill", target, colorAnimation))
 	button.Children(func() {
-		ui.Text(c, label).FontSize(12).Bold().TextColor(ink)
+		ui.Text(c, label).FontSize(TypeBodySecondary).Bold().TextColor(ink)
 	})
 	scale := float32(1)
 	if pressed {
-		scale = 0.975
+		scale = 0.98
 	}
 	button.AnimatePose(ui.Pose{Scale: scale}, ui.Snappy)
 	return button
